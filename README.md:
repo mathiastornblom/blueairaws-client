@@ -1,0 +1,97 @@
+# BlueAir AWS Client
+
+A TypeScript client for the BlueAir API using AWS endpoint.
+
+## Installation
+
+Clone this repository:
+
+```bash
+git clone https://github.com/mathiastornblom/blueairaws-client.git
+
+
+## Usage
+Here's a simple guide on how to use the BlueAir Client:
+
+1. Import the client:
+import { ApiClient } from './blueairClient';
+
+2. Initialize and use the client:
+const client = new ApiClient('your-email', 'your-password');
+client.initialize()
+    .then(() => client.getDevices())
+    .then(devices => console.log(devices))
+    .catch(error => console.error("Error:", error.message));
+
+## Advanced Usage: Setting Fan Speed
+
+To set the fan speed of a specific device, you might have a method in your client similar to `setFanSpeed(deviceId: string, speed: number)`. Here's a demonstration of how you can use this:
+
+```typescript
+import { ApiClient } from './blueairAwsClient';
+
+const client = new ApiClient('your-email', 'your-password');
+
+client.initialize()
+    .then(() => {
+        // Assuming you have the device ID on hand.
+        const deviceId = 'your-device-id';
+        const desiredSpeed = 3;  // Set the desired fan speed level here.
+
+        return client.setFanSpeed(deviceId, desiredSpeed);
+    })
+    .then(() => {
+        console.log(`Successfully set the fan speed for device ${deviceId} to ${desiredSpeed}.`);
+    })
+    .catch(error => {
+        console.error("Error:", error.message);
+    });
+
+## API Client Methods Overview
+
+The `ApiClient` provides a set of methods to interact with the BlueAir API. Here's a quick overview of the available public methods:
+
+- **async initialize(): Promise<void>
+**
+    - Description: Initializes the client by fetching necessary authentication tokens.
+  
+- **async getDevices(): Promise<Device[]>
+**
+    - Description: Retrieves a list of devices associated with the client's user account.
+
+- **async getDeviceAttributes(uuid: string): Promise<DeviceAttribute[]>
+**
+    - Description: Retrieves attributes (like current temperature, humidity, etc.) of a specific device.
+    - Parameters:
+        - `deviceId`: The unique identifier of the device.
+
+- **async getDeviceInfo(uuid: string): Promise<DeviceInfo>
+**
+    - Description: Retrieves detailed information (like model, manufacturer, etc.) about a specific device.
+    - Parameters:
+        - `deviceId`: The unique identifier of the device.
+
+- **setFanSpeed(deviceId: string, speed: number): Promise<void>**
+    - Description: Sets the fan speed of a specific device.
+
+- **async setBrightness(uuid: string, currentValue: string, defaultValue: string, userId?: number): Promise<void>
+**
+    - Description: Sets the brightness level of a specific device's display or LED.
+
+- **async setChildLock(uuid: string, currentValue: string, defaultValue: string, userId: number): Promise<void>
+**
+    - Description: Sets the child lock attribute for a specific device.
+
+For detailed usage examples and method specifics, refer to the provided documentation or method comments in the source code.
+
+
+
+## Tests
+npm test
+
+## Notes
+Make sure to handle authentication errors gracefully. The client is designed to throw specific error messages when the authentication token is expired or invalid. Always check for these errors in your implementation to ensure a smooth user experience.
+
+your .env file should hold the following;
+CORRECT_NAME = "usernamne";
+RIGHT_PASSWORD = "password";
