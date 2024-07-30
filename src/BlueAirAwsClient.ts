@@ -289,6 +289,124 @@ export class BlueAirAwsClient {
 	}
 
 	/**
+	 * Sets the fan to automatic mode for a specific device.
+	 *
+	 * @param {string} uuid - The unique identifier of the device.
+	 * @param {boolean} value - The value to set for the fan's automatic mode. Acceptable values are true or false.
+	 * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+	 * @throws {Error} - Throws an error if the arguments are missing or invalid.
+	 */
+	public async setFanAuto(uuid: string, value: boolean): Promise<void> {
+		// Validate
+		if (typeof uuid !== "string" || uuid.trim() === "") {
+			throw new Error("Invalid or missing UUID");
+		}
+
+		// Validate value
+		if (typeof value !== "boolean") {
+			throw new Error(
+				"Invalid fan speed value. Acceptable values are true or false"
+			);
+		}
+
+		// Check token expiration
+		await this.checkTokenExpiration();
+
+		// Set device status
+		await this.setDeviceStatus(uuid, "automode", value);
+	}
+
+	/**
+	 * Sets the fan speed for a specific device.
+	 *
+	 * @param {string} uuid - The unique identifier of the device.
+	 * @param {number} value - The value to set for the fan's speed. Acceptable values are 0, 1, 2, or 3.
+	 * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+	 * @throws {Error} Throws an error if the arguments are missing or invalid.
+	 */
+	public async setFanSpeed(uuid: string, value: number): Promise<void> {
+		// Validate UUID
+		if (typeof uuid !== "string" || uuid.trim() === "") {
+			throw new Error("Invalid or missing UUID");
+		}
+
+		// Validate value
+		if (typeof value !== "number" || isNaN(value)) {
+			throw new Error("Fan speed value must be a numeric value.");
+		}
+		if (![0, 1, 2, 3].includes(value)) {
+			throw new Error(
+				"Invalid fan speed value. Acceptable values are 0, 1, 2, or 3."
+			);
+		}
+
+		// Check token expiration
+		await this.checkTokenExpiration();
+
+		// Set device status
+		await this.setDeviceStatus(uuid, "fanspeed", value);
+	}
+
+	/**
+	 * Sets the brightness for a specific device.
+	 *
+	 * @param {string} uuid - The unique identifier of the device.
+	 * @param {number} value - The value to set for the brightness. Acceptable values are 0, 1, 2, or 3.
+	 * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+	 * @throws {Error} Throws an error if the arguments are missing or invalid.
+	 */
+	public async setBrightness(uuid: string, value: number): Promise<void> {
+		// Validate UUID
+		if (typeof uuid !== "string" || uuid.trim() === "") {
+			throw new Error("Invalid or missing UUID");
+		}
+
+		// Validate value
+		if (typeof value !== "number" || isNaN(value)) {
+			throw new Error("Fan speed value must be a numeric value.");
+		}
+		if (![0, 1, 2, 3, 4].includes(value)) {
+			throw new Error(
+				"Invalid fan speed value. Acceptable values are 0, 1, 2, 3 or 4."
+			);
+		}
+
+		// Check token expiration
+		await this.checkTokenExpiration();
+
+		// Set device status
+		await this.setDeviceStatus(uuid, "brightness", value);
+	}
+
+	/**
+	 * Sets the childlock for a specific device.
+	 *
+	 * @param {string} uuid - The unique identifier of the device.
+	 * @param {boolean} value - The value to set for the childlocks mode. Acceptable values are true or false.
+	 * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+	 * @throws {Error} - Throws an error if the arguments are missing or invalid.
+	 */
+	public async setChildLock(uuid: string, value: boolean): Promise<void> {
+		// Validate
+		if (typeof uuid !== "string" || uuid.trim() === "") {
+			throw new Error("Invalid or missing UUID");
+		}
+
+		// Validate value
+		if (typeof value !== "boolean") {
+			throw new Error(
+				"Invalid child lock value. Acceptable values are true or false"
+			);
+		}
+
+		// Check token expiration
+		await this.checkTokenExpiration();
+
+		// Set device status
+		await this.setDeviceStatus(uuid, "childlock", value);
+	}
+
+	/**
 	 * Makes an API call with retry functionality.
 	 * @param url - The URL to call.
 	 * @param data - The data to send with the request.

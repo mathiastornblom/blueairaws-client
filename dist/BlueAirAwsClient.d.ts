@@ -25,10 +25,10 @@ export type BlueAirDeviceStatus = {
 export declare class BlueAirAwsClient {
     private mutex;
     private _authToken;
-    private _endpoint;
     private gigyaApi;
     private last_login;
     private blueAirApiUrl;
+    private readonly HOMEHOST_ENDPOINT;
     /**
      * Constructor to set up the client with necessary credentials.
      * @param username - The user's email or username.
@@ -70,6 +70,51 @@ export declare class BlueAirAwsClient {
      * @throws {Error} - If the fetch operation fails.
      */
     getDeviceStatus(accountuuid: string, uuids: string[]): Promise<BlueAirDeviceStatus[]>;
+    /**
+     * Sets the status of a specified device.
+     * @param uuid - The unique identifier of the device.
+     * @param state - The state property to be updated.
+     * @param value - The new value to set for the specified state property. Can be a number or a boolean.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} - If the value type is neither number nor boolean, or if the API call fails.
+     */
+    setDeviceStatus(uuid: string, state: keyof BlueAirDeviceState, value: number | boolean): Promise<void>;
+    /**
+     * Sets the fan to automatic mode for a specific device.
+     *
+     * @param {string} uuid - The unique identifier of the device.
+     * @param {boolean} value - The value to set for the fan's automatic mode. Acceptable values are true or false.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} - Throws an error if the arguments are missing or invalid.
+     */
+    setFanAuto(uuid: string, value: boolean): Promise<void>;
+    /**
+     * Sets the fan speed for a specific device.
+     *
+     * @param {string} uuid - The unique identifier of the device.
+     * @param {number} value - The value to set for the fan's speed. Acceptable values are 0, 1, 2, or 3.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} Throws an error if the arguments are missing or invalid.
+     */
+    setFanSpeed(uuid: string, value: number): Promise<void>;
+    /**
+     * Sets the brightness for a specific device.
+     *
+     * @param {string} uuid - The unique identifier of the device.
+     * @param {number} value - The value to set for the brightness. Acceptable values are 0, 1, 2, or 3.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} Throws an error if the arguments are missing or invalid.
+     */
+    setBrightness(uuid: string, value: number): Promise<void>;
+    /**
+     * Sets the childlock for a specific device.
+     *
+     * @param {string} uuid - The unique identifier of the device.
+     * @param {boolean} value - The value to set for the childlocks mode. Acceptable values are true or false.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} - Throws an error if the arguments are missing or invalid.
+     */
+    setChildLock(uuid: string, value: boolean): Promise<void>;
     /**
      * Makes an API call with retry functionality.
      * @param url - The URL to call.

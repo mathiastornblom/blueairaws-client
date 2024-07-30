@@ -32,8 +32,8 @@ class BlueAirAwsClient {
         var _a;
         // Authentication token fetched during initialization.
         this._authToken = null;
-        // The API endpoint determined after initialization.
-        this._endpoint = null;
+        // Endpoint to determine the home host. You will need to replace this with your actual endpoint.
+        this.HOMEHOST_ENDPOINT = "https://api.blueair.io/v2/";
         console.debug("Initializing BlueAirAwsClient with region:", region);
         console.debug("RegionMap:", Consts_1.RegionMap);
         const regionCode = Consts_1.RegionMap[region];
@@ -143,49 +143,186 @@ class BlueAirAwsClient {
     getDeviceStatus(accountuuid, uuids) {
         return __awaiter(this, void 0, void 0, function* () {
             yield this.checkTokenExpiration();
-            const deviceStatuses = yield Promise.all(uuids.map((uuid) => __awaiter(this, void 0, void 0, function* () {
-                const body = {
-                    deviceconfigquery: uuids.map((uuid) => ({
-                        id: uuid,
-                        r: { r: ["sensors"] },
-                    })),
-                    includestates: true,
-                    eventsubscription: {
-                        include: uuids.map((uuid) => ({ filter: { o: `= ${uuid}` } })),
-                    },
-                };
-                const data = yield this.apiCall(`/${accountuuid}/r/initial`, body);
-                // Debugging: log the returned data
-                console.debug(`Response data for UUID ${uuid}:`, JSON.stringify(data, null, 2));
-                if (!data.deviceInfo) {
-                    throw new Error(`getDeviceStatus error: no deviceInfo in response for ${uuid}`);
-                }
-                const deviceInfo = data.deviceInfo[0]; // Assuming only one device info is returned per request
-                return {
-                    id: deviceInfo.id,
-                    name: deviceInfo.configuration.di.name,
-                    sensorData: deviceInfo.sensordata.reduce((acc, sensor) => {
-                        const key = Consts_1.BlueAirDeviceSensorDataMap[sensor.n];
-                        if (key) {
-                            acc[key] = sensor.v;
-                        }
-                        return acc;
-                    }, {}),
-                    state: deviceInfo.states.reduce((acc, state) => {
-                        if (state.v !== undefined) {
-                            acc[state.n] = state.v;
-                        }
-                        else if (state.vb !== undefined) {
-                            acc[state.n] = state.vb;
-                        }
-                        else {
-                            console.debug(`getDeviceStatus: unknown state ${JSON.stringify(state)}`);
-                        }
-                        return acc;
-                    }, {}),
-                };
-            })));
+            const body = {
+                deviceconfigquery: uuids.map((uuid) => ({
+                    id: uuid,
+                    r: { r: ["sensors"] },
+                })),
+                includestates: true,
+                eventsubscription: {
+                    include: uuids.map((uuid) => ({ filter: { o: `= ${uuid}` } })),
+                },
+            };
+            const data = yield this.apiCall(`/${accountuuid}/r/initial`, body);
+            // Debugging: log the returned data
+            // console.debug(
+            // 	`Response data for UUIDs ${JSON.stringify(uuids)}:`,
+            // 	JSON.stringify(data, null, 2)
+            // );
+            if (!data.deviceInfo) {
+                throw new Error(`getDeviceStatus error: no deviceInfo in response`);
+            }
+            const deviceStatuses = data.deviceInfo.map((device) => ({
+                id: device.id,
+                name: device.configuration.di.name,
+                sensorData: device.sensordata.reduce((acc, sensor) => {
+                    const key = Consts_1.BlueAirDeviceSensorDataMap[sensor.n];
+                    if (key) {
+                        acc[key] = sensor.v;
+                    }
+                    return acc;
+                }, {}),
+                state: device.states.reduce((acc, state) => {
+                    if (state.v !== undefined) {
+                        acc[state.n] = state.v;
+                    }
+                    else if (state.vb !== undefined) {
+                        acc[state.n] = state.vb;
+                    }
+                    else {
+                        console.debug(`getDeviceStatus: unknown state ${JSON.stringify(state)}`);
+                    }
+                    return acc;
+                }, {}),
+            }));
             return deviceStatuses;
+        });
+    }
+    /**
+     * Sets the status of a specified device.
+     * @param uuid - The unique identifier of the device.
+     * @param state - The state property to be updated.
+     * @param value - The new value to set for the specified state property. Can be a number or a boolean.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} - If the value type is neither number nor boolean, or if the API call fails.
+     */
+    setDeviceStatus(uuid, state, value) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Ensure the authentication token is valid and not expired.
+            yield this.checkTokenExpiration();
+            // Log the parameters for debugging purposes.
+            console.debug(`setDeviceStatus: ${uuid} ${state} ${value}`);
+            // Create the request body for setting the device status.
+            const body = {
+                n: state, // The name of the state property to be updated.
+            };
+            // Set the appropriate value in the request body based on the type of the value.
+            if (typeof value === "number") {
+                body.v = value; // Set the value as a number.
+            }
+            else if (typeof value === "boolean") {
+                body.vb = value; // Set the value as a boolean.
+            }
+            else {
+                // Throw an error if the value type is neither number nor boolean.
+                throw new Error(`setDeviceStatus: unknown value type ${typeof value}`);
+            }
+            // Make the API call to set the device status.
+            const response = yield this.apiCall(`/${uuid}/a/${state}`, body);
+            // Log the API response for debugging purposes.
+            console.debug(`setDeviceStatus response: ${JSON.stringify(response)}`);
+        });
+    }
+    /**
+     * Sets the fan to automatic mode for a specific device.
+     *
+     * @param {string} uuid - The unique identifier of the device.
+     * @param {boolean} value - The value to set for the fan's automatic mode. Acceptable values are true or false.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} - Throws an error if the arguments are missing or invalid.
+     */
+    setFanAuto(uuid, value) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Validate
+            if (typeof uuid !== "string" || uuid.trim() === "") {
+                throw new Error("Invalid or missing UUID");
+            }
+            // Validate value
+            if (typeof value !== "boolean") {
+                throw new Error("Invalid fan speed value. Acceptable values are true or false");
+            }
+            // Check token expiration
+            yield this.checkTokenExpiration();
+            // Set device status
+            yield this.setDeviceStatus(uuid, "automode", value);
+        });
+    }
+    /**
+     * Sets the fan speed for a specific device.
+     *
+     * @param {string} uuid - The unique identifier of the device.
+     * @param {number} value - The value to set for the fan's speed. Acceptable values are 0, 1, 2, or 3.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} Throws an error if the arguments are missing or invalid.
+     */
+    setFanSpeed(uuid, value) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Validate UUID
+            if (typeof uuid !== "string" || uuid.trim() === "") {
+                throw new Error("Invalid or missing UUID");
+            }
+            // Validate value
+            if (typeof value !== "number" || isNaN(value)) {
+                throw new Error("Fan speed value must be a numeric value.");
+            }
+            if (![0, 1, 2, 3].includes(value)) {
+                throw new Error("Invalid fan speed value. Acceptable values are 0, 1, 2, or 3.");
+            }
+            // Check token expiration
+            yield this.checkTokenExpiration();
+            // Set device status
+            yield this.setDeviceStatus(uuid, "fanspeed", value);
+        });
+    }
+    /**
+     * Sets the brightness for a specific device.
+     *
+     * @param {string} uuid - The unique identifier of the device.
+     * @param {number} value - The value to set for the brightness. Acceptable values are 0, 1, 2, or 3.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} Throws an error if the arguments are missing or invalid.
+     */
+    setBrightness(uuid, value) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Validate UUID
+            if (typeof uuid !== "string" || uuid.trim() === "") {
+                throw new Error("Invalid or missing UUID");
+            }
+            // Validate value
+            if (typeof value !== "number" || isNaN(value)) {
+                throw new Error("Fan speed value must be a numeric value.");
+            }
+            if (![0, 1, 2, 3, 4].includes(value)) {
+                throw new Error("Invalid fan speed value. Acceptable values are 0, 1, 2, 3 or 4.");
+            }
+            // Check token expiration
+            yield this.checkTokenExpiration();
+            // Set device status
+            yield this.setDeviceStatus(uuid, "brightness", value);
+        });
+    }
+    /**
+     * Sets the childlock for a specific device.
+     *
+     * @param {string} uuid - The unique identifier of the device.
+     * @param {boolean} value - The value to set for the childlocks mode. Acceptable values are true or false.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} - Throws an error if the arguments are missing or invalid.
+     */
+    setChildLock(uuid, value) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Validate
+            if (typeof uuid !== "string" || uuid.trim() === "") {
+                throw new Error("Invalid or missing UUID");
+            }
+            // Validate value
+            if (typeof value !== "boolean") {
+                throw new Error("Invalid child lock value. Acceptable values are true or false");
+            }
+            // Check token expiration
+            yield this.checkTokenExpiration();
+            // Set device status
+            yield this.setDeviceStatus(uuid, "childlock", value);
         });
     }
     /**
