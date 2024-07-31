@@ -1,4 +1,4 @@
-import { Region, BlueAirDeviceSensorData, BlueAirDeviceState } from "./Consts";
+import { Region, BlueAirDeviceStatus, BlueAirDeviceState } from "./Consts";
 /**
  * Represents a device structure. Add more properties as per your actual data.
  */
@@ -10,12 +10,6 @@ type BlueAirDeviceDiscovery = {
     "user-type": string;
     uuid: string;
     "wifi-firmware": string;
-};
-export type BlueAirDeviceStatus = {
-    id: string;
-    name: string;
-    state: BlueAirDeviceState;
-    sensorData: BlueAirDeviceSensorData;
 };
 /**
  * BlueAirAwsClient Class:

@@ -14,6 +14,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.BlueAirAwsClient = void 0;
 const async_mutex_1 = require("async-mutex");
+const axios_1 = __importDefault(require("axios"));
 const Consts_1 = require("./Consts");
 const GigyaApi_1 = __importDefault(require("./GigyaApi"));
 /**
@@ -155,16 +156,14 @@ class BlueAirAwsClient {
             };
             const data = yield this.apiCall(`/${accountuuid}/r/initial`, body);
             // Debugging: log the returned data
-            // console.debug(
-            // 	`Response data for UUIDs ${JSON.stringify(uuids)}:`,
-            // 	JSON.stringify(data, null, 2)
-            // );
+            console.debug(`Response data for UUIDs ${JSON.stringify(uuids)}:`, JSON.stringify(data, null, 2));
             if (!data.deviceInfo) {
                 throw new Error(`getDeviceStatus error: no deviceInfo in response`);
             }
             const deviceStatuses = data.deviceInfo.map((device) => ({
                 id: device.id,
                 name: device.configuration.di.name,
+                model: device.configuration._it,
                 sensorData: device.sensordata.reduce((acc, sensor) => {
                     const key = Consts_1.BlueAirDeviceSensorDataMap[sensor.n];
                     if (key) {
@@ -346,22 +345,24 @@ class BlueAirAwsClient {
                     headers: Object.assign({ Accept: "*/*", Connection: "keep-alive", "Accept-Encoding": "gzip, deflate, br", Authorization: `Bearer ${this._authToken}`, idtoken: this._authToken || "" }, headers),
                     body: data,
                 });
-                const response = yield fetch(`${this.blueAirApiUrl}${url}`, {
+                const axiosConfig = {
+                    url: `${this.blueAirApiUrl}${url}`,
                     method: method,
-                    headers: Object.assign({ Accept: "*/*", ContentType: "application/json", UserAgent: "Blueair/58 CFNetwork/1327.0.4 Darwin/21.2.0", Connection: "keep-alive", "Accept-Encoding": "gzip, deflate, br", Authorization: `Bearer ${this._authToken}`, idtoken: this._authToken || "" }, headers),
-                    body: JSON.stringify(data),
+                    headers: Object.assign({ Accept: "*/*", "Content-Type": "application/json", "User-Agent": "Blueair/58 CFNetwork/1327.0.4 Darwin/21.2.0", Connection: "keep-alive", "Accept-Encoding": "gzip, deflate, br", Authorization: `Bearer ${this._authToken}`, idtoken: this._authToken || "" }, headers),
+                    data: data,
                     signal: controller.signal,
-                });
-                const json = yield response.json();
+                    timeout: Consts_1.BLUEAIR_API_TIMEOUT,
+                };
+                const response = yield (0, axios_1.default)(axiosConfig);
                 console.debug("API Call - Response:", {
                     status: response.status,
                     statusText: response.statusText,
-                    body: json,
+                    body: response.data,
                 });
                 if (response.status !== 200) {
-                    throw new Error(`API call error with status ${response.status}: ${response.statusText}, ${JSON.stringify(json)}`);
+                    throw new Error(`API call error with status ${response.status}: ${response.statusText}, ${JSON.stringify(response.data)}`);
                 }
-                return json;
+                return response.data;
             }
             catch (error) {
                 console.error("API Call - Error:", {
@@ -375,7 +376,7 @@ class BlueAirAwsClient {
                     return this.apiCall(url, data, method, headers, retries - 1);
                 }
                 else {
-                    if (error instanceof Error && error.name === "AbortError") {
+                    if (axios_1.default.isCancel(error)) {
                         throw new Error(`API call failed after ${3 - retries} retries with timeout.`);
                     }
                     else {

@@ -1,3 +1,4 @@
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
 import { BLUEAIR_CONFIG, Region, RegionMap } from "./Consts";
 
 /**
@@ -85,11 +86,11 @@ export default class GigyaApi {
 		};
 	}
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	private async apiCall(url: string, data: string, retries = 3): Promise<any> {
 		const controller = new AbortController();
 		try {
-			const response = await fetch(`${this.gigyaApiUrl}${url}?${data}`, {
+			const axiosConfig: AxiosRequestConfig = {
+				url: `${this.gigyaApiUrl}${url}?${data}`,
 				method: "POST",
 				headers: {
 					"Content-Type": "application/x-www-form-urlencoded",
@@ -98,8 +99,12 @@ export default class GigyaApi {
 					"Accept-Encoding": "gzip, deflate, br",
 				},
 				signal: controller.signal,
-			});
-			const json = await response.json();
+				timeout: 10000, // Timeout for the request
+			};
+
+			const response: AxiosResponse<any> = await axios(axiosConfig);
+			const json = response.data;
+
 			if (response.status !== 200) {
 				throw new Error(
 					`API call error with status ${response.status}: ${

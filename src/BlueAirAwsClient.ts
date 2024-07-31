@@ -1,10 +1,12 @@
 import { Mutex } from "async-mutex";
+import axios, { AxiosRequestConfig, AxiosResponse } from "axios";
 import {
 	BLUEAIR_CONFIG,
 	LOGIN_EXPIRATION,
 	BLUEAIR_API_TIMEOUT,
 	RegionMap,
 	Region,
+	BlueAirDeviceStatus,
 	BlueAirDeviceStatusResponse,
 	BlueAirDeviceSensorData,
 	BlueAirDeviceState,
@@ -24,13 +26,6 @@ type BlueAirDeviceDiscovery = {
 	"user-type": string;
 	uuid: string;
 	"wifi-firmware": string;
-};
-
-export type BlueAirDeviceStatus = {
-	id: string;
-	name: string;
-	state: BlueAirDeviceState;
-	sensorData: BlueAirDeviceSensorData;
 };
 
 /**
@@ -206,10 +201,10 @@ export class BlueAirAwsClient {
 		);
 
 		// Debugging: log the returned data
-		// console.debug(
-		// 	`Response data for UUIDs ${JSON.stringify(uuids)}:`,
-		// 	JSON.stringify(data, null, 2)
-		// );
+		console.debug(
+			`Response data for UUIDs ${JSON.stringify(uuids)}:`,
+			JSON.stringify(data, null, 2)
+		);
 
 		if (!data.deviceInfo) {
 			throw new Error(`getDeviceStatus error: no deviceInfo in response`);
@@ -219,6 +214,7 @@ export class BlueAirAwsClient {
 			(device) => ({
 				id: device.id,
 				name: device.configuration.di.name,
+				model: device.configuration._it,
 				sensorData: device.sensordata.reduce((acc, sensor) => {
 					const key =
 						BlueAirDeviceSensorDataMap[
@@ -440,38 +436,40 @@ export class BlueAirAwsClient {
 				body: data,
 			});
 
-			const response = await fetch(`${this.blueAirApiUrl}${url}`, {
+			const axiosConfig: AxiosRequestConfig = {
+				url: `${this.blueAirApiUrl}${url}`,
 				method: method,
 				headers: {
 					Accept: "*/*",
-					ContentType: "application/json",
-					UserAgent: "Blueair/58 CFNetwork/1327.0.4 Darwin/21.2.0",
+					"Content-Type": "application/json",
+					"User-Agent": "Blueair/58 CFNetwork/1327.0.4 Darwin/21.2.0",
 					Connection: "keep-alive",
 					"Accept-Encoding": "gzip, deflate, br",
 					Authorization: `Bearer ${this._authToken}`,
 					idtoken: this._authToken || "", // Ensure idtoken is a string
 					...headers,
 				},
-				body: JSON.stringify(data),
+				data: data,
 				signal: controller.signal,
-			});
+				timeout: BLUEAIR_API_TIMEOUT,
+			};
 
-			const json = await response.json();
+			const response: AxiosResponse<T> = await axios(axiosConfig);
 
 			console.debug("API Call - Response:", {
 				status: response.status,
 				statusText: response.statusText,
-				body: json,
+				body: response.data,
 			});
 
 			if (response.status !== 200) {
 				throw new Error(
 					`API call error with status ${response.status}: ${
 						response.statusText
-					}, ${JSON.stringify(json)}`
+					}, ${JSON.stringify(response.data)}`
 				);
 			}
-			return json as T;
+			return response.data;
 		} catch (error) {
 			console.error("API Call - Error:", {
 				url: `${this.blueAirApiUrl}${url}`,
@@ -491,7 +489,7 @@ export class BlueAirAwsClient {
 			if (retries > 0) {
 				return this.apiCall(url, data, method, headers, retries - 1);
 			} else {
-				if (error instanceof Error && error.name === "AbortError") {
+				if (axios.isCancel(error)) {
 					throw new Error(
 						`API call failed after ${3 - retries} retries with timeout.`
 					);

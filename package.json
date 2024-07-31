@@ -1,7 +1,7 @@
 {
 	"name": "blueairaws-client",
 	"displayName": "BlueAir AWS API Client",
-	"version": "1.0.2",
+	"version": "1.0.9",
 	"description": "Typescript Client for BlueAir using AWS endpoint",
 	"repository": "github:mathiastornblom/blueairaws-client",
 	"bugs": {
@@ -12,7 +12,8 @@
 	"types": "./dist/blueairAwsClient.d.ts",
 	"scripts": {
 		"test": "jest",
-		"build": "tsc"
+		"build": "tsc",
+		"publish": "npm publish --access public"
 	},
 	"keywords": [],
 	"author": "Mathias Törnblom",
@@ -29,6 +30,13 @@
 		"jest": "^29.7.0",
 		"ts-jest": "^29.2.3",
 		"typescript": "^5.5.3"
+	},
+	"jest": {
+		"preset": "ts-jest",
+		"testEnvironment": "node",
+		"transformIgnorePatterns": [
+			"/node_modules/(?!node-fetch/.+\\.js$)"
+		]
 	},
 	"funding": {
 		"type": "github",

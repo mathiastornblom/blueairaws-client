@@ -8,7 +8,11 @@ var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, ge
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
+const axios_1 = __importDefault(require("axios"));
 const Consts_1 = require("./Consts");
 /**
  * Gigya API client for handling authentication.
@@ -76,12 +80,12 @@ class GigyaApi {
             };
         });
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     apiCall(url_1, data_1) {
         return __awaiter(this, arguments, void 0, function* (url, data, retries = 3) {
             const controller = new AbortController();
             try {
-                const response = yield fetch(`${this.gigyaApiUrl}${url}?${data}`, {
+                const axiosConfig = {
+                    url: `${this.gigyaApiUrl}${url}?${data}`,
                     method: "POST",
                     headers: {
                         "Content-Type": "application/x-www-form-urlencoded",
@@ -90,8 +94,10 @@ class GigyaApi {
                         "Accept-Encoding": "gzip, deflate, br",
                     },
                     signal: controller.signal,
-                });
-                const json = yield response.json();
+                    timeout: 10000, // Timeout for the request
+                };
+                const response = yield (0, axios_1.default)(axiosConfig);
+                const json = response.data;
                 if (response.status !== 200) {
                     throw new Error(`API call error with status ${response.status}: ${response.statusText}, ${JSON.stringify(json)}`);
                 }

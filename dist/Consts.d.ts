@@ -32,6 +32,7 @@ export type BlueAirDeviceStatusResponse = {
             di: {
                 name: string;
             };
+            _it: string;
         };
         sensordata: {
             n: string;
@@ -111,6 +112,7 @@ export type BlueAirDeviceSensorData = {
 export type BlueAirDeviceStatus = {
     id: string;
     name: string;
+    model: string;
     state: BlueAirDeviceState;
     sensorData: BlueAirDeviceSensorData;
 };
