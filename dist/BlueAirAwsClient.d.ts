@@ -1,15 +1,15 @@
-import { Region, BlueAirDeviceStatus, BlueAirDeviceState } from "./Consts";
+import { Region, BlueAirDeviceStatus, BlueAirDeviceState } from './Consts';
 /**
  * Represents a device structure. Add more properties as per your actual data.
  */
 type BlueAirDeviceDiscovery = {
     mac: string;
-    "mcu-firmware": string;
+    'mcu-firmware': string;
     name: string;
     type: string;
-    "user-type": string;
+    'user-type': string;
     uuid: string;
-    "wifi-firmware": string;
+    'wifi-firmware': string;
 };
 /**
  * BlueAirAwsClient Class:
@@ -86,7 +86,7 @@ export declare class BlueAirAwsClient {
      * Sets the fan speed for a specific device.
      *
      * @param {string} uuid - The unique identifier of the device.
-     * @param {number} value - The value to set for the fan's speed. Acceptable values are 0, 1, 2, or 3.
+     * @param {number} value - The value to set for the fan's speed. Acceptable values are between 0 and 100.
      * @returns {Promise<void>} - A promise that resolves when the operation is complete.
      * @throws {Error} Throws an error if the arguments are missing or invalid.
      */
@@ -95,7 +95,7 @@ export declare class BlueAirAwsClient {
      * Sets the brightness for a specific device.
      *
      * @param {string} uuid - The unique identifier of the device.
-     * @param {number} value - The value to set for the brightness. Acceptable values are 0, 1, 2, or 3.
+     * @param {number} value - The value to set for the brightness. Acceptable values are between 0 and 100.
      * @returns {Promise<void>} - A promise that resolves when the operation is complete.
      * @throws {Error} Throws an error if the arguments are missing or invalid.
      */

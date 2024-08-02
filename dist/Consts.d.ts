@@ -30,7 +30,13 @@ export type BlueAirDeviceStatusResponse = {
         id: string;
         configuration: {
             di: {
+                cma: string;
                 name: string;
+                sku: string;
+                mfv: string;
+                ofv: string;
+                hw: string;
+                ds: string;
             };
             _it: string;
         };
@@ -75,12 +81,12 @@ export declare const defaultConfig: Config;
 export declare const defaultDeviceConfig: DeviceConfig;
 export type BlueAirDeviceDiscovery = {
     mac: string;
-    "mcu-firmware": string;
+    'mcu-firmware': string;
     name: string;
     type: string;
-    "user-type": string;
+    'user-type': string;
     uuid: string;
-    "wifi-firmware": string;
+    'wifi-firmware': string;
 };
 export type BlueAirDeviceState = {
     cfv?: string;
@@ -113,6 +119,10 @@ export type BlueAirDeviceStatus = {
     id: string;
     name: string;
     model: string;
+    mac: string;
+    wifi: string;
+    mcu: string;
+    serial: string;
     state: BlueAirDeviceState;
     sensorData: BlueAirDeviceSensorData;
 };

@@ -34,9 +34,9 @@ class BlueAirAwsClient {
         // Authentication token fetched during initialization.
         this._authToken = null;
         // Endpoint to determine the home host. You will need to replace this with your actual endpoint.
-        this.HOMEHOST_ENDPOINT = "https://api.blueair.io/v2/";
-        console.debug("Initializing BlueAirAwsClient with region:", region);
-        console.debug("RegionMap:", Consts_1.RegionMap);
+        this.HOMEHOST_ENDPOINT = 'https://api.blueair.io/v2/';
+        console.debug('Initializing BlueAirAwsClient with region:', region);
+        console.debug('RegionMap:', Consts_1.RegionMap);
         const regionCode = Consts_1.RegionMap[region];
         const config = (_a = Consts_1.BLUEAIR_CONFIG[regionCode]) === null || _a === void 0 ? void 0 : _a.awsConfig;
         if (!config) {
@@ -46,7 +46,7 @@ class BlueAirAwsClient {
         this.mutex = new async_mutex_1.Mutex();
         this.gigyaApi = new GigyaApi_1.default(username, password, region);
         this.last_login = 0;
-        this._authToken = "";
+        this._authToken = '';
     }
     // Getter for the authToken property.
     get authToken() {
@@ -59,13 +59,13 @@ class BlueAirAwsClient {
     initialize() {
         return __awaiter(this, void 0, void 0, function* () {
             try {
-                console.debug("Initializing client...");
+                console.debug('Initializing client...');
                 yield this.login();
-                console.debug("Client initialized");
+                console.debug('Client initialized');
                 return true;
             }
             catch (error) {
-                console.error("Error during initialization:", error);
+                console.error('Error during initialization:', error);
                 return false;
             }
         });
@@ -75,13 +75,13 @@ class BlueAirAwsClient {
      */
     login() {
         return __awaiter(this, void 0, void 0, function* () {
-            console.debug("Logging in...");
+            console.debug('Logging in...');
             const { token, secret } = yield this.gigyaApi.getGigyaSession();
             const { jwt } = yield this.gigyaApi.getGigyaJWT(token, secret);
             const { accessToken } = yield this.getAwsAccessToken(jwt);
             this.last_login = Date.now();
             this._authToken = accessToken;
-            console.debug("Logged in");
+            console.debug('Logged in');
         });
     }
     /**
@@ -90,7 +90,7 @@ class BlueAirAwsClient {
     checkTokenExpiration() {
         return __awaiter(this, void 0, void 0, function* () {
             if (Consts_1.LOGIN_EXPIRATION < Date.now() - this.last_login) {
-                console.debug("Token expired, logging in again");
+                console.debug('Token expired, logging in again');
                 yield this.login();
             }
         });
@@ -102,15 +102,15 @@ class BlueAirAwsClient {
      */
     getAwsAccessToken(jwt) {
         return __awaiter(this, void 0, void 0, function* () {
-            console.debug("Getting AWS access token...");
-            const response = yield this.apiCall("/login", undefined, "POST", {
+            console.debug('Getting AWS access token...');
+            const response = yield this.apiCall('/login', undefined, 'POST', {
                 Authorization: `Bearer ${jwt}`,
                 idtoken: jwt, // Make sure jwt is not null or undefined
             });
             if (!response.access_token) {
                 throw new Error(`AWS access token error: ${JSON.stringify(response)}`);
             }
-            console.debug("AWS access token received");
+            console.debug('AWS access token received');
             return {
                 accessToken: response.access_token,
             };
@@ -124,13 +124,13 @@ class BlueAirAwsClient {
     getDevices() {
         return __awaiter(this, void 0, void 0, function* () {
             yield this.checkTokenExpiration();
-            console.debug("Getting devices...");
-            const response = yield this.apiCall("/registered-devices", undefined, "GET");
+            console.debug('Getting devices...');
+            const response = yield this.apiCall('/registered-devices', undefined, 'GET');
             if (!response.devices) {
-                throw new Error("getDevices error: no devices in response");
+                throw new Error('getDevices error: no devices in response');
             }
             const devices = response.devices;
-            console.debug("Devices fetched:", devices);
+            console.debug('Devices fetched:', devices);
             return devices;
         });
     }
@@ -147,7 +147,7 @@ class BlueAirAwsClient {
             const body = {
                 deviceconfigquery: uuids.map((uuid) => ({
                     id: uuid,
-                    r: { r: ["sensors"] },
+                    r: { r: ['sensors'] },
                 })),
                 includestates: true,
                 eventsubscription: {
@@ -164,6 +164,11 @@ class BlueAirAwsClient {
                 id: device.id,
                 name: device.configuration.di.name,
                 model: device.configuration._it,
+                mac: device.configuration.di.cma,
+                sku: device.configuration.di.sku,
+                mcu: device.configuration.di.mfv,
+                serial: device.configuration.di.ds,
+                wifi: device.configuration.di.ofv,
                 sensorData: device.sensordata.reduce((acc, sensor) => {
                     const key = Consts_1.BlueAirDeviceSensorDataMap[sensor.n];
                     if (key) {
@@ -206,10 +211,10 @@ class BlueAirAwsClient {
                 n: state, // The name of the state property to be updated.
             };
             // Set the appropriate value in the request body based on the type of the value.
-            if (typeof value === "number") {
+            if (typeof value === 'number') {
                 body.v = value; // Set the value as a number.
             }
-            else if (typeof value === "boolean") {
+            else if (typeof value === 'boolean') {
                 body.vb = value; // Set the value as a boolean.
             }
             else {
@@ -233,71 +238,71 @@ class BlueAirAwsClient {
     setFanAuto(uuid, value) {
         return __awaiter(this, void 0, void 0, function* () {
             // Validate
-            if (typeof uuid !== "string" || uuid.trim() === "") {
-                throw new Error("Invalid or missing UUID");
+            if (typeof uuid !== 'string' || uuid.trim() === '') {
+                throw new Error('Invalid or missing UUID');
             }
             // Validate value
-            if (typeof value !== "boolean") {
-                throw new Error("Invalid fan speed value. Acceptable values are true or false");
+            if (typeof value !== 'boolean') {
+                throw new Error('Invalid fan speed value. Acceptable values are true or false');
             }
             // Check token expiration
             yield this.checkTokenExpiration();
             // Set device status
-            yield this.setDeviceStatus(uuid, "automode", value);
+            yield this.setDeviceStatus(uuid, 'automode', value);
         });
     }
     /**
      * Sets the fan speed for a specific device.
      *
      * @param {string} uuid - The unique identifier of the device.
-     * @param {number} value - The value to set for the fan's speed. Acceptable values are 0, 1, 2, or 3.
+     * @param {number} value - The value to set for the fan's speed. Acceptable values are between 0 and 100.
      * @returns {Promise<void>} - A promise that resolves when the operation is complete.
      * @throws {Error} Throws an error if the arguments are missing or invalid.
      */
     setFanSpeed(uuid, value) {
         return __awaiter(this, void 0, void 0, function* () {
             // Validate UUID
-            if (typeof uuid !== "string" || uuid.trim() === "") {
-                throw new Error("Invalid or missing UUID");
+            if (typeof uuid !== 'string' || uuid.trim() === '') {
+                throw new Error('Invalid or missing UUID');
             }
             // Validate value
-            if (typeof value !== "number" || isNaN(value)) {
-                throw new Error("Fan speed value must be a numeric value.");
+            if (typeof value !== 'number' || isNaN(value)) {
+                throw new Error('Fan speed value must be a numeric value.');
             }
-            if (![0, 1, 2, 3].includes(value)) {
-                throw new Error("Invalid fan speed value. Acceptable values are 0, 1, 2, or 3.");
+            if (value < 0 || value > 100) {
+                throw new Error('Invalid fan speed value. Acceptable values are between 0 and 100.');
             }
             // Check token expiration
             yield this.checkTokenExpiration();
             // Set device status
-            yield this.setDeviceStatus(uuid, "fanspeed", value);
+            yield this.setDeviceStatus(uuid, 'fanspeed', value);
         });
     }
     /**
      * Sets the brightness for a specific device.
      *
      * @param {string} uuid - The unique identifier of the device.
-     * @param {number} value - The value to set for the brightness. Acceptable values are 0, 1, 2, or 3.
+     * @param {number} value - The value to set for the brightness. Acceptable values are between 0 and 100.
      * @returns {Promise<void>} - A promise that resolves when the operation is complete.
      * @throws {Error} Throws an error if the arguments are missing or invalid.
      */
     setBrightness(uuid, value) {
         return __awaiter(this, void 0, void 0, function* () {
             // Validate UUID
-            if (typeof uuid !== "string" || uuid.trim() === "") {
-                throw new Error("Invalid or missing UUID");
+            if (typeof uuid !== 'string' || uuid.trim() === '') {
+                throw new Error('Invalid or missing UUID');
             }
             // Validate value
-            if (typeof value !== "number" || isNaN(value)) {
-                throw new Error("Fan speed value must be a numeric value.");
+            if (typeof value !== 'number' || isNaN(value)) {
+                throw new Error('Brightness value must be a numeric value.');
             }
-            if (![0, 1, 2, 3, 4].includes(value)) {
-                throw new Error("Invalid fan speed value. Acceptable values are 0, 1, 2, 3 or 4.");
+            if (value < 0 || value > 100) {
+                throw new Error('Invalid brightness value. Acceptable values are between 0 and 100.');
             }
             // Check token expiration
             yield this.checkTokenExpiration();
             // Set device status
-            yield this.setDeviceStatus(uuid, "brightness", value);
+            yield this.setDeviceStatus(uuid, 'brightness', value);
         });
     }
     /**
@@ -311,17 +316,17 @@ class BlueAirAwsClient {
     setChildLock(uuid, value) {
         return __awaiter(this, void 0, void 0, function* () {
             // Validate
-            if (typeof uuid !== "string" || uuid.trim() === "") {
-                throw new Error("Invalid or missing UUID");
+            if (typeof uuid !== 'string' || uuid.trim() === '') {
+                throw new Error('Invalid or missing UUID');
             }
             // Validate value
-            if (typeof value !== "boolean") {
-                throw new Error("Invalid child lock value. Acceptable values are true or false");
+            if (typeof value !== 'boolean') {
+                throw new Error('Invalid child lock value. Acceptable values are true or false');
             }
             // Check token expiration
             yield this.checkTokenExpiration();
             // Set device status
-            yield this.setDeviceStatus(uuid, "childlock", value);
+            yield this.setDeviceStatus(uuid, 'childlock', value);
         });
     }
     /**
@@ -334,41 +339,48 @@ class BlueAirAwsClient {
      * @returns {Promise<any>} - The response data.
      */
     apiCall(url_1, data_1) {
-        return __awaiter(this, arguments, void 0, function* (url, data, method = "POST", headers, retries = 3) {
+        return __awaiter(this, arguments, void 0, function* (url, data, method = 'POST', headers, retries = 3) {
             const release = yield this.mutex.acquire();
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), Consts_1.BLUEAIR_API_TIMEOUT);
             try {
-                console.debug("API Call - Request:", {
-                    url: `${this.blueAirApiUrl}${url}`,
-                    method: method,
-                    headers: Object.assign({ Accept: "*/*", Connection: "keep-alive", "Accept-Encoding": "gzip, deflate, br", Authorization: `Bearer ${this._authToken}`, idtoken: this._authToken || "" }, headers),
-                    body: data,
-                });
+                // console.debug('API Call - Request:', {
+                //   url: `${this.blueAirApiUrl}${url}`,
+                //   method: method,
+                //   headers: {
+                //     Accept: '*/*',
+                //     Connection: 'keep-alive',
+                //     'Accept-Encoding': 'gzip, deflate, br',
+                //     Authorization: `Bearer ${this._authToken}`,
+                //     idtoken: this._authToken || '', // Ensure idtoken is a string
+                //     ...headers,
+                //   },
+                //   body: data,
+                // });
                 const axiosConfig = {
                     url: `${this.blueAirApiUrl}${url}`,
                     method: method,
-                    headers: Object.assign({ Accept: "*/*", "Content-Type": "application/json", "User-Agent": "Blueair/58 CFNetwork/1327.0.4 Darwin/21.2.0", Connection: "keep-alive", "Accept-Encoding": "gzip, deflate, br", Authorization: `Bearer ${this._authToken}`, idtoken: this._authToken || "" }, headers),
+                    headers: Object.assign({ Accept: '*/*', 'Content-Type': 'application/json', 'User-Agent': 'Blueair/58 CFNetwork/1327.0.4 Darwin/21.2.0', Connection: 'keep-alive', 'Accept-Encoding': 'gzip, deflate, br', Authorization: `Bearer ${this._authToken}`, idtoken: this._authToken || '' }, headers),
                     data: data,
                     signal: controller.signal,
                     timeout: Consts_1.BLUEAIR_API_TIMEOUT,
                 };
                 const response = yield (0, axios_1.default)(axiosConfig);
-                console.debug("API Call - Response:", {
-                    status: response.status,
-                    statusText: response.statusText,
-                    body: response.data,
-                });
+                /*       console.debug('API Call - Response:', {
+                  status: response.status,
+                  statusText: response.statusText,
+                  body: response.data,
+                }); */
                 if (response.status !== 200) {
                     throw new Error(`API call error with status ${response.status}: ${response.statusText}, ${JSON.stringify(response.data)}`);
                 }
                 return response.data;
             }
             catch (error) {
-                console.error("API Call - Error:", {
+                console.error('API Call - Error:', {
                     url: `${this.blueAirApiUrl}${url}`,
                     method: method,
-                    headers: Object.assign({ Accept: "*/*", Connection: "keep-alive", "Accept-Encoding": "gzip, deflate, br", Authorization: `Bearer ${this._authToken}`, idtoken: this._authToken || "" }, headers),
+                    headers: Object.assign({ Accept: '*/*', Connection: 'keep-alive', 'Accept-Encoding': 'gzip, deflate, br', Authorization: `Bearer ${this._authToken}`, idtoken: this._authToken || '' }, headers),
                     body: data,
                     error: error,
                 });
