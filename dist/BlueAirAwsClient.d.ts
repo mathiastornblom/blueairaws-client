@@ -119,6 +119,15 @@ export declare class BlueAirAwsClient {
      */
     setNightMode(uuid: string, value: boolean): Promise<void>;
     /**
+     * Sets the standby for a specific device.
+     *
+     * @param {string} uuid - The unique identifier of the device.
+     * @param {boolean} value - The value to set for the standby mode. Acceptable values are true or false.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} - Throws an error if the arguments are missing or invalid.
+     */
+    setStandby(uuid: string, value: boolean): Promise<void>;
+    /**
      * Makes an API call with retry functionality.
      * @param url - The URL to call.
      * @param data - The data to send with the request.
