@@ -21,7 +21,7 @@ type AWSConfigValue = {
 
 type AWSConfig = { [key: string]: AWSConfigValue };
 
-const AWS_CONFIG: AWSConfig = {
+export const AWS_CONFIG: AWSConfig = {
   us: {
     restApiId: 'on1keymlmh',
     awsRegion: 'us-east-2',

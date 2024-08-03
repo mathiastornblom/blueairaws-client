@@ -1,9 +1,9 @@
 import { Mutex } from 'async-mutex';
 import axios, { AxiosRequestConfig, AxiosResponse } from 'axios';
 import {
-  BLUEAIR_CONFIG,
   LOGIN_EXPIRATION,
   BLUEAIR_API_TIMEOUT,
+  AWS_CONFIG,
   RegionMap,
   Region,
   BlueAirDeviceStatus,
@@ -41,56 +41,171 @@ export class BlueAirAwsClient {
   private _authToken: string | null = null;
 
   // Gigya API client for fetching the JWT token.
-  private gigyaApi: GigyaApi;
-  private last_login: number;
+  private gigyaApi!: GigyaApi;
+
+  // Timestamp for last login
+  private last_login: number = 0;
 
   // Base URL for the BlueAir API
-  private blueAirApiUrl: string;
+  private blueAirApiUrl!: string;
+
+  // Constant API key token, required for authenticating with the API.
+  private readonly API_KEY_TOKEN: string =
+    'eyJhbGciOiJIUzI1NiJ9.eyJncmFudGVlIjoiYmx1ZWFpciIsImlhdCI6MTQ1MzEyNTYzMiwidmFsaWRpdHkiOi0xLCJqdGkiOiJkNmY3OGE0Yi1iMWNkLTRkZDgtOTA2Yi1kN2JkNzM0MTQ2NzQiLCJwZXJtaXNzaW9ucyI6WyJhbGwiXSwicXVvdGEiOi0xLCJyYXRlTGltaXQiOi0xfQ.CJsfWVzFKKDDA6rWdh-hjVVVE9S3d6Hu9BzXG9htWFw';
 
   // Endpoint to determine the home host. You will need to replace this with your actual endpoint.
   private readonly HOMEHOST_ENDPOINT: string = 'https://api.blueair.io/v2/';
+
+  // Base64 encoded credentials for Basic Authentication.
+  private username: string;
+  private password: string;
+  private base64Credentials: string;
 
   /**
    * Constructor to set up the client with necessary credentials.
    * @param username - The user's email or username.
    * @param password - The user's password.
-   * @param region - The region for the API.
    */
-  constructor(username: string, password: string, region: Region) {
-    console.debug('Initializing BlueAirAwsClient with region:', region);
-    console.debug('RegionMap:', RegionMap);
-    const regionCode = RegionMap[region];
-    const config = BLUEAIR_CONFIG[regionCode]?.awsConfig;
-    if (!config) {
-      throw new Error(`No config found for region: ${region}`);
-    }
-    this.blueAirApiUrl = `https://${config.restApiId}.execute-api.${config.awsRegion}.amazonaws.com/prod/c`;
+  constructor(username: string, password: string) {
+    console.debug('Initializing BlueAirAwsClient');
 
+    this.username = username;
+    this.password = password;
+    this.base64Credentials = btoa(`${this.username}:${this.password}`);
     this.mutex = new Mutex();
-    this.gigyaApi = new GigyaApi(username, password, region);
-    this.last_login = 0;
-    this._authToken = '';
-  }
-
-  // Getter for the authToken property.
-  public get authToken(): string | null {
-    return this._authToken;
   }
 
   /**
-   * Initializes the client by determining the API endpoint and fetching the authentication token.
+   * Initializes the client by determining the API endpoint, region, and setting up the Gigya API.
    * @returns {Promise<boolean>} True if initialization was successful, false otherwise.
    */
-  public async initialize(): Promise<boolean> {
+  public async initialize(region?: Region): Promise<boolean> {
+    console.debug('Initializing client...');
+
     try {
-      console.debug('Initializing client...');
+      // Determine the region if not provided
+      if (!region) {
+        console.debug('No region provided, determining from endpoint...');
+        region = await this.determineEndpoint();
+      }
+
+      console.debug('RegionMap:', RegionMap);
+
+      // Ensure that region is defined after determination
+      if (!region) {
+        throw new Error('Unable to determine region, and no region provided');
+      }
+
+      const regionCode = RegionMap[region];
+      if (!regionCode) {
+        throw new Error(`Invalid region code for region: ${region}`);
+      }
+
+      const config = AWS_CONFIG[regionCode];
+      if (!config) {
+        throw new Error(`No config found for region: ${region}`);
+      }
+
+      this.blueAirApiUrl = `https://${config.restApiId}.execute-api.${config.awsRegion}.amazonaws.com/prod/c`;
+      this.gigyaApi = new GigyaApi(this.username, this.password, region);
+
       await this.login();
-      console.debug('Client initialized');
+      console.debug('Client initialized successfully');
       return true;
     } catch (error) {
       console.error('Error during initialization:', error);
       return false;
     }
+  }
+
+  /**
+   * Determines the appropriate endpoint (home host) for the API and resolves the region.
+   * @returns {Promise<Region>} - The determined API region.
+   * @throws {Error} - If the fetch operation fails or region is not found.
+   */
+  private async determineEndpoint(): Promise<Region> {
+    const url = `${this.HOMEHOST_ENDPOINT}user/${encodeURIComponent(
+      this.username,
+    )}/homehost/`;
+    console.log(`Determining endpoint with URL: ${url}`);
+
+    return this.retry(async () => {
+      try {
+        const response = await axios.get(url, {
+          headers: {
+            Authorization: `Basic ${this.base64Credentials}`,
+            'X-API-KEY-TOKEN': this.API_KEY_TOKEN,
+          },
+        });
+
+        const endpoint = response.data; // Example: "api-eu-west-1.blueair.io"
+        console.log(`Determined endpoint: ${endpoint}`);
+
+        const awsRegion = this.extractAwsRegion(endpoint);
+        const region = this.mapAwsRegionToRegion(awsRegion);
+
+        console.log(`Mapped AWS region: ${awsRegion} to Region: ${region}`);
+        return region;
+      } catch (error) {
+        if (axios.isAxiosError(error)) {
+          console.error('Failed to determine endpoint', error);
+          throw new Error(
+            `Failed to determine endpoint. Message: ${error.message}`,
+          );
+        } else {
+          console.error('An unexpected error occurred', error);
+          throw new Error('An unexpected error occurred');
+        }
+      }
+    });
+  }
+
+  /**
+   * Extracts the AWS region from the endpoint string.
+   * @param endpoint - The endpoint URL.
+   * @returns {string} - The extracted AWS region.
+   */
+  private extractAwsRegion(endpoint: string): string {
+    // Regex to match the region part from the endpoint, e.g., "eu-west-1"
+    const match = endpoint.match(/api-([a-z0-9\-]+)\.blueair\.io/i);
+    if (!match || !match[1]) {
+      throw new Error(
+        `Unable to extract AWS region from endpoint: ${endpoint}`,
+      );
+    }
+    return match[1];
+  }
+
+  /**
+   * Maps the extracted AWS region to the Region enum.
+   * @param awsRegion - The extracted AWS region.
+   * @returns {Region} - The mapped Region enum.
+   * @throws {Error} - If the region cannot be mapped.
+   */
+  private mapAwsRegionToRegion(awsRegion: string): Region {
+    const regionEntry = Object.entries(AWS_CONFIG).find(
+      ([key, value]) => value.awsRegion === awsRegion,
+    );
+
+    if (!regionEntry) {
+      throw new Error(`No region mapping found for AWS region: ${awsRegion}`);
+    }
+
+    // Find the corresponding region key
+    const regionKey = Object.entries(RegionMap).find(
+      ([_, value]) => value === regionEntry[0],
+    )?.[0];
+
+    if (!regionKey) {
+      throw new Error(`Unable to map AWS region to Region enum: ${awsRegion}`);
+    }
+
+    return Region[regionKey as keyof typeof Region];
+  }
+
+  // Getter for the authToken property.
+  public get authToken(): string | null {
+    return this._authToken;
   }
 
   /**
@@ -564,5 +679,32 @@ export class BlueAirAwsClient {
       clearTimeout(timeout);
       release();
     }
+  }
+
+  /**
+   * Retries an asynchronous operation a specified number of times with a delay between each attempt.
+   * @param fn - A function that returns a Promise. This is the operation that will be retried upon failure.
+   * @param retries - The number of times to retry the operation. Default is 3.
+   * @param delay - The delay in milliseconds between each retry attempt. Default is 1000ms (1 second).
+   * @returns A Promise that resolves with the result of the function fn if it eventually succeeds,
+   * or rejects with an error if all retry attempts fail.
+   */
+  private async retry<T>(
+    fn: () => Promise<T>,
+    retries = 3,
+    delay = 1000,
+  ): Promise<T> {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        if (attempt < retries) {
+          await new Promise((res) => setTimeout(res, delay));
+        } else {
+          throw error;
+        }
+      }
+    }
+    throw new Error('Failed after multiple retries');
   }
 }
