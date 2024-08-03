@@ -12,6 +12,10 @@ type AWSConfigValue = {
     restApiId: string;
     awsRegion: string;
 };
+type AWSConfig = {
+    [key: string]: AWSConfigValue;
+};
+export declare const AWS_CONFIG: AWSConfig;
 type GigyaConfigValue = {
     gigyaRegion: string;
     apiKey: string;

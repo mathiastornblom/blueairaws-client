@@ -1,6 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.BlueAirDeviceSensorDataMap = exports.defaultDeviceConfig = exports.defaultConfig = exports.BLUEAIR_API_TIMEOUT = exports.LOGIN_EXPIRATION = exports.BLUEAIR_CONFIG = exports.RegionMap = exports.Region = void 0;
+exports.BlueAirDeviceSensorDataMap = exports.defaultDeviceConfig = exports.defaultConfig = exports.BLUEAIR_API_TIMEOUT = exports.LOGIN_EXPIRATION = exports.BLUEAIR_CONFIG = exports.AWS_CONFIG = exports.RegionMap = exports.Region = void 0;
 var Region;
 (function (Region) {
     Region["EU"] = "EU";
@@ -16,7 +16,7 @@ exports.RegionMap = {
     [Region.AU]: 'au',
     [Region.RU]: 'ru',
 };
-const AWS_CONFIG = {
+exports.AWS_CONFIG = {
     us: {
         restApiId: 'on1keymlmh',
         awsRegion: 'us-east-2',
@@ -64,7 +64,7 @@ exports.BLUEAIR_CONFIG = Object.keys(exports.RegionMap).reduce((acc, key) => {
     const regionKey = key;
     const regionCode = exports.RegionMap[regionKey];
     acc[regionCode] = {
-        awsConfig: AWS_CONFIG[regionCode],
+        awsConfig: exports.AWS_CONFIG[regionCode],
         gigyaConfig: GIGYA_CONFIG[regionCode],
     };
     return acc;

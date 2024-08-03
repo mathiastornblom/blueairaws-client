@@ -22,20 +22,42 @@ export declare class BlueAirAwsClient {
     private gigyaApi;
     private last_login;
     private blueAirApiUrl;
+    private readonly API_KEY_TOKEN;
     private readonly HOMEHOST_ENDPOINT;
+    private username;
+    private password;
+    private base64Credentials;
     /**
      * Constructor to set up the client with necessary credentials.
      * @param username - The user's email or username.
      * @param password - The user's password.
-     * @param region - The region for the API.
      */
-    constructor(username: string, password: string, region: Region);
-    get authToken(): string | null;
+    constructor(username: string, password: string);
     /**
-     * Initializes the client by determining the API endpoint and fetching the authentication token.
+     * Initializes the client by determining the API endpoint, region, and setting up the Gigya API.
      * @returns {Promise<boolean>} True if initialization was successful, false otherwise.
      */
-    initialize(): Promise<boolean>;
+    initialize(region?: Region): Promise<boolean>;
+    /**
+     * Determines the appropriate endpoint (home host) for the API and resolves the region.
+     * @returns {Promise<Region>} - The determined API region.
+     * @throws {Error} - If the fetch operation fails or region is not found.
+     */
+    private determineEndpoint;
+    /**
+     * Extracts the AWS region from the endpoint string.
+     * @param endpoint - The endpoint URL.
+     * @returns {string} - The extracted AWS region.
+     */
+    private extractAwsRegion;
+    /**
+     * Maps the extracted AWS region to the Region enum.
+     * @param awsRegion - The extracted AWS region.
+     * @returns {Region} - The mapped Region enum.
+     * @throws {Error} - If the region cannot be mapped.
+     */
+    private mapAwsRegionToRegion;
+    get authToken(): string | null;
     /**
      * Logs in and sets the authentication token.
      */
@@ -137,5 +159,14 @@ export declare class BlueAirAwsClient {
      * @returns {Promise<any>} - The response data.
      */
     private apiCall;
+    /**
+     * Retries an asynchronous operation a specified number of times with a delay between each attempt.
+     * @param fn - A function that returns a Promise. This is the operation that will be retried upon failure.
+     * @param retries - The number of times to retry the operation. Default is 3.
+     * @param delay - The delay in milliseconds between each retry attempt. Default is 1000ms (1 second).
+     * @returns A Promise that resolves with the result of the function fn if it eventually succeeds,
+     * or rejects with an error if all retry attempts fail.
+     */
+    private retry;
 }
 export {};
