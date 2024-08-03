@@ -330,6 +330,30 @@ class BlueAirAwsClient {
         });
     }
     /**
+     * Sets the night mode for a specific device.
+     *
+     * @param {string} uuid - The unique identifier of the device.
+     * @param {boolean} value - The value to set for the night mode mode. Acceptable values are true or false.
+     * @returns {Promise<void>} - A promise that resolves when the operation is complete.
+     * @throws {Error} - Throws an error if the arguments are missing or invalid.
+     */
+    setNightMode(uuid, value) {
+        return __awaiter(this, void 0, void 0, function* () {
+            // Validate
+            if (typeof uuid !== 'string' || uuid.trim() === '') {
+                throw new Error('Invalid or missing UUID');
+            }
+            // Validate value
+            if (typeof value !== 'boolean') {
+                throw new Error('Invalid night mode value. Acceptable values are true or false');
+            }
+            // Check token expiration
+            yield this.checkTokenExpiration();
+            // Set device status
+            yield this.setDeviceStatus(uuid, 'nightmode', value);
+        });
+    }
+    /**
      * Makes an API call with retry functionality.
      * @param url - The URL to call.
      * @param data - The data to send with the request.
