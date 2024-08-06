@@ -47,17 +47,15 @@ export declare class BlueAirAwsClient {
     /**
      * Extracts the AWS region from the endpoint string.
      * @param endpoint - The endpoint URL.
-     * @returns {string} - The extracted AWS region.
+     * @returns {string} - The extracted AWS region or two-letter fallback.
      */
     private extractAwsRegion;
     /**
      * Maps the extracted AWS region to the Region enum.
      * @param awsRegion - The extracted AWS region.
-     * @returns {Region} - The mapped Region enum.
-     * @throws {Error} - If the region cannot be mapped.
+     * @returns {Region} - The mapped Region enum or uses the two-letter fallback if mapping fails.
      */
     private mapAwsRegionToRegion;
-    get authToken(): string | null;
     /**
      * Logs in and sets the authentication token.
      */

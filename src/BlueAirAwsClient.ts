@@ -163,49 +163,57 @@ export class BlueAirAwsClient {
   /**
    * Extracts the AWS region from the endpoint string.
    * @param endpoint - The endpoint URL.
-   * @returns {string} - The extracted AWS region.
+   * @returns {string} - The extracted AWS region or two-letter fallback.
    */
   private extractAwsRegion(endpoint: string): string {
     // Regex to match the region part from the endpoint, e.g., "eu-west-1"
     const match = endpoint.match(/api-([a-z0-9\-]+)\.blueair\.io/i);
+
     if (!match || !match[1]) {
-      throw new Error(
-        `Unable to extract AWS region from endpoint: ${endpoint}`,
+      console.warn(
+        `Unable to extract AWS region from endpoint: ${endpoint}. Attempting fallback.`,
       );
+      return ''; // Empty string to indicate failure
     }
-    return match[1];
+
+    return match[1]; // Return the matched AWS region
   }
 
   /**
    * Maps the extracted AWS region to the Region enum.
    * @param awsRegion - The extracted AWS region.
-   * @returns {Region} - The mapped Region enum.
-   * @throws {Error} - If the region cannot be mapped.
+   * @returns {Region} - The mapped Region enum or uses the two-letter fallback if mapping fails.
    */
   private mapAwsRegionToRegion(awsRegion: string): Region {
     const regionEntry = Object.entries(AWS_CONFIG).find(
       ([key, value]) => value.awsRegion === awsRegion,
     );
 
-    if (!regionEntry) {
-      throw new Error(`No region mapping found for AWS region: ${awsRegion}`);
+    if (regionEntry) {
+      // If exact match found
+      const regionKey = Object.entries(RegionMap).find(
+        ([_, value]) => value === regionEntry[0],
+      )?.[0];
+
+      if (regionKey) {
+        return Region[regionKey as keyof typeof Region];
+      }
     }
 
-    // Find the corresponding region key
-    const regionKey = Object.entries(RegionMap).find(
-      ([_, value]) => value === regionEntry[0],
+    // If no exact match, use the first two letters as a fallback
+    const fallbackPrefix = awsRegion.slice(0, 2).toLowerCase();
+    const fallbackRegionKey = Object.entries(RegionMap).find(([_, value]) =>
+      value.startsWith(fallbackPrefix),
     )?.[0];
 
-    if (!regionKey) {
-      throw new Error(`Unable to map AWS region to Region enum: ${awsRegion}`);
+    if (fallbackRegionKey) {
+      console.warn(`Using fallback region based on prefix: ${fallbackPrefix}`);
+      return Region[fallbackRegionKey as keyof typeof Region];
     }
 
-    return Region[regionKey as keyof typeof Region];
-  }
-
-  // Getter for the authToken property.
-  public get authToken(): string | null {
-    return this._authToken;
+    // Final fallback to EU if no match found
+    console.warn(`Unable to map AWS region: ${awsRegion}. Falling back to EU.`);
+    return Region.EU;
   }
 
   /**
@@ -632,11 +640,11 @@ export class BlueAirAwsClient {
 
       const response: AxiosResponse<T> = await axios(axiosConfig);
 
-      /*       console.debug('API Call - Response:', {
-        status: response.status,
-        statusText: response.statusText,
-        body: response.data,
-      }); */
+      // console.debug('API Call - Response:', {
+      //   status: response.status,
+      //   statusText: response.statusText,
+      //   body: response.data,
+      // });
 
       if (response.status !== 200) {
         throw new Error(
