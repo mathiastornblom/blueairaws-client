@@ -38,6 +38,50 @@ describe('BlueAirAwsClient', () => {
     }
   });
 
+  describe('BlueAirAwsClient Region Mapping', () => {
+  let client: BlueAirAwsClient;
+
+  beforeAll(() => {
+    client = new BlueAirAwsClient('dummyUsername', 'dummyPassword');
+  });
+
+  test('should map us-east-1 to US region', () => {
+    const region = client['mapAwsRegionToRegion']('us-east-1');
+    expect(region).toBe(Region.US);
+  });
+
+  test('should map us-east-2 to US region', () => {
+    const region = client['mapAwsRegionToRegion']('us-east-2');
+    expect(region).toBe(Region.US);
+  });
+
+  test('should map eu-west-1 to EU region', () => {
+    const region = client['mapAwsRegionToRegion']('eu-west-1');
+    expect(region).toBe(Region.EU);
+  });
+
+  test('should map cn-north-1 to CN region', () => {
+    const region = client['mapAwsRegionToRegion']('cn-north-1');
+    expect(region).toBe(Region.CN);
+  });
+
+  test('should map ap-southeast-2 to AU region', () => {
+    const region = client['mapAwsRegionToRegion']('ap-southeast-2');
+    expect(region).toBe(Region.AU);
+  });
+
+  test('should map eu-central-1 to RU region', () => {
+    const region = client['mapAwsRegionToRegion']('eu-central-1');
+    expect(region).toBe(Region.RU);
+  });
+
+  test('should throw an error for an unknown AWS region', () => {
+    expect(() => client['mapAwsRegionToRegion']('unknown-region')).toThrow(
+      'No region mapping found for AWS region: unknown-region'
+    );
+  });
+});
+
   test('should initialize correctly', () => {
     expect(client).toBeInstanceOf(BlueAirAwsClient);
     expect(initialized).toBe(true);

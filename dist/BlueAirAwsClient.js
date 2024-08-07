@@ -65,7 +65,8 @@ class BlueAirAwsClient {
                 if (!regionCode) {
                     throw new Error(`Invalid region code for region: ${region}`);
                 }
-                const config = Consts_1.AWS_CONFIG[regionCode];
+                // Access AWS_CONFIG using the awsRegion string that corresponds to the region code
+                const config = Object.values(Consts_1.AWS_CONFIG).find((config) => config.regionCode === regionCode);
                 if (!config) {
                     throw new Error(`No config found for region: ${region}`);
                 }
@@ -98,9 +99,10 @@ class BlueAirAwsClient {
                             'X-API-KEY-TOKEN': this.API_KEY_TOKEN,
                         },
                     });
-                    const endpoint = response.data; // Example: "api-eu-west-1.blueair.io"
+                    const endpoint = response.data; // Example: "api-us-east-1.blueair.io"
                     console.log(`Determined endpoint: ${endpoint}`);
                     const awsRegion = this.extractAwsRegion(endpoint);
+                    console.log(`Extracted AWS region: ${awsRegion}`);
                     const region = this.mapAwsRegionToRegion(awsRegion);
                     console.log(`Mapped AWS region: ${awsRegion} to Region: ${region}`);
                     return region;
@@ -135,28 +137,34 @@ class BlueAirAwsClient {
     /**
      * Maps the extracted AWS region to the Region enum.
      * @param awsRegion - The extracted AWS region.
-     * @returns {Region} - The mapped Region enum or uses the two-letter fallback if mapping fails.
+     * @returns {Region} - The mapped Region enum.
+     * @throws {Error} - If the region cannot be mapped.
      */
     mapAwsRegionToRegion(awsRegion) {
-        var _a, _b;
-        const regionEntry = Object.entries(Consts_1.AWS_CONFIG).find(([key, value]) => value.awsRegion === awsRegion);
-        if (regionEntry) {
-            // If exact match found
-            const regionKey = (_a = Object.entries(Consts_1.RegionMap).find(([_, value]) => value === regionEntry[0])) === null || _a === void 0 ? void 0 : _a[0];
-            if (regionKey) {
-                return Consts_1.Region[regionKey];
-            }
+        var _a;
+        console.debug(`Mapping AWS region: ${awsRegion}`);
+        // Directly access the AWS_CONFIG using the awsRegion as a key
+        const regionEntry = Consts_1.AWS_CONFIG[awsRegion];
+        console.debug(`Region entry found: ${JSON.stringify(regionEntry)}`);
+        // If no entry is found, throw an error
+        if (!regionEntry) {
+            throw new Error(`No region mapping found for AWS region: ${awsRegion}`);
         }
-        // If no exact match, use the first two letters as a fallback
-        const fallbackPrefix = awsRegion.slice(0, 2).toLowerCase();
-        const fallbackRegionKey = (_b = Object.entries(Consts_1.RegionMap).find(([_, value]) => value.startsWith(fallbackPrefix))) === null || _b === void 0 ? void 0 : _b[0];
-        if (fallbackRegionKey) {
-            console.warn(`Using fallback region based on prefix: ${fallbackPrefix}`);
-            return Consts_1.Region[fallbackRegionKey];
+        // Use the regionCode to map to the Region enum
+        const regionCode = regionEntry.regionCode; // Directly access the regionCode field
+        // Map the regionCode to the corresponding Region enum
+        const regionKey = (_a = Object.entries(Consts_1.RegionMap).find(([regionEnum, code]) => code === regionCode)) === null || _a === void 0 ? void 0 : _a[0];
+        console.debug(`Mapped region key: ${regionKey}`);
+        // If no internal region key is found, throw an error
+        if (!regionKey) {
+            throw new Error(`Unable to map AWS region to Region enum: ${awsRegion}`);
         }
-        // Final fallback to EU if no match found
-        console.warn(`Unable to map AWS region: ${awsRegion}. Falling back to EU.`);
-        return Consts_1.Region.EU;
+        // Return the mapped Region enum value
+        return Consts_1.Region[regionKey];
+    }
+    // Getter for the authToken property.
+    get authToken() {
+        return this._authToken;
     }
     /**
      * Logs in and sets the authentication token.

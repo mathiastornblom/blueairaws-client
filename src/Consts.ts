@@ -17,32 +17,44 @@ export const RegionMap: { [key in Region]: string } = {
 type AWSConfigValue = {
   restApiId: string;
   awsRegion: string;
+  regionCode: string;
 };
 
 type AWSConfig = { [key: string]: AWSConfigValue };
 
 export const AWS_CONFIG: AWSConfig = {
-  us: {
+  'us-east-2': {
     restApiId: 'on1keymlmh',
     awsRegion: 'us-east-2',
+    regionCode: 'us',
   },
-  eu: {
+  'us-east-1': {
+    restApiId: 'hkgmr8v960',
+    awsRegion: 'us-east-1',
+    regionCode: 'us',
+  },
+  'eu-west-1': {
     restApiId: 'hkgmr8v960',
     awsRegion: 'eu-west-1',
+    regionCode: 'eu',
   },
-  cn: {
+  'cn-north-1': {
     restApiId: 'ftbkyp79si',
     awsRegion: 'cn-north-1',
+    regionCode: 'cn',
   },
-  au: {
+  'ap-southeast-2': {
     restApiId: '3lcm4dxjhk',
     awsRegion: 'ap-southeast-2',
+    regionCode: 'au',
   },
-  ru: {
+  'eu-central-1': {
     restApiId: 'f3g4h7ik0l',
     awsRegion: 'eu-central-1',
+    regionCode: 'ru',
   },
 };
+
 
 type GigyaConfigValue = {
   gigyaRegion: string;

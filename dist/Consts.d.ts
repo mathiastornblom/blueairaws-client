@@ -11,6 +11,7 @@ export declare const RegionMap: {
 type AWSConfigValue = {
     restApiId: string;
     awsRegion: string;
+    regionCode: string;
 };
 type AWSConfig = {
     [key: string]: AWSConfigValue;

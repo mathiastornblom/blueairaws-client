@@ -101,10 +101,14 @@ export class BlueAirAwsClient {
         throw new Error(`Invalid region code for region: ${region}`);
       }
 
-      const config = AWS_CONFIG[regionCode];
-      if (!config) {
-        throw new Error(`No config found for region: ${region}`);
-      }
+      // Access AWS_CONFIG using the awsRegion string that corresponds to the region code
+      const config = Object.values(AWS_CONFIG).find(
+        (config) => config.regionCode === regionCode,
+      );
+      
+          if (!config) {
+            throw new Error(`No config found for region: ${region}`);
+          }
 
       this.blueAirApiUrl = `https://${config.restApiId}.execute-api.${config.awsRegion}.amazonaws.com/prod/c`;
       this.gigyaApi = new GigyaApi(this.username, this.password, region);
@@ -138,13 +142,15 @@ export class BlueAirAwsClient {
           },
         });
 
-        const endpoint = response.data; // Example: "api-eu-west-1.blueair.io"
+        const endpoint = response.data; // Example: "api-us-east-1.blueair.io"
         console.log(`Determined endpoint: ${endpoint}`);
 
         const awsRegion = this.extractAwsRegion(endpoint);
-        const region = this.mapAwsRegionToRegion(awsRegion);
+        console.log(`Extracted AWS region: ${awsRegion}`);
 
+        const region = this.mapAwsRegionToRegion(awsRegion);
         console.log(`Mapped AWS region: ${awsRegion} to Region: ${region}`);
+
         return region;
       } catch (error) {
         if (axios.isAxiosError(error)) {
@@ -182,38 +188,44 @@ export class BlueAirAwsClient {
   /**
    * Maps the extracted AWS region to the Region enum.
    * @param awsRegion - The extracted AWS region.
-   * @returns {Region} - The mapped Region enum or uses the two-letter fallback if mapping fails.
+   * @returns {Region} - The mapped Region enum.
+   * @throws {Error} - If the region cannot be mapped.
    */
   private mapAwsRegionToRegion(awsRegion: string): Region {
-    const regionEntry = Object.entries(AWS_CONFIG).find(
-      ([key, value]) => value.awsRegion === awsRegion,
-    );
+    console.debug(`Mapping AWS region: ${awsRegion}`);
 
-    if (regionEntry) {
-      // If exact match found
-      const regionKey = Object.entries(RegionMap).find(
-        ([_, value]) => value === regionEntry[0],
-      )?.[0];
+    // Directly access the AWS_CONFIG using the awsRegion as a key
+    const regionEntry = AWS_CONFIG[awsRegion];
 
-      if (regionKey) {
-        return Region[regionKey as keyof typeof Region];
-      }
+    console.debug(`Region entry found: ${JSON.stringify(regionEntry)}`);
+
+    // If no entry is found, throw an error
+    if (!regionEntry) {
+      throw new Error(`No region mapping found for AWS region: ${awsRegion}`);
     }
 
-    // If no exact match, use the first two letters as a fallback
-    const fallbackPrefix = awsRegion.slice(0, 2).toLowerCase();
-    const fallbackRegionKey = Object.entries(RegionMap).find(([_, value]) =>
-      value.startsWith(fallbackPrefix),
+    // Use the regionCode to map to the Region enum
+    const regionCode = regionEntry.regionCode; // Directly access the regionCode field
+
+    // Map the regionCode to the corresponding Region enum
+    const regionKey = Object.entries(RegionMap).find(
+      ([regionEnum, code]) => code === regionCode,
     )?.[0];
 
-    if (fallbackRegionKey) {
-      console.warn(`Using fallback region based on prefix: ${fallbackPrefix}`);
-      return Region[fallbackRegionKey as keyof typeof Region];
+    console.debug(`Mapped region key: ${regionKey}`);
+
+    // If no internal region key is found, throw an error
+    if (!regionKey) {
+      throw new Error(`Unable to map AWS region to Region enum: ${awsRegion}`);
     }
 
-    // Final fallback to EU if no match found
-    console.warn(`Unable to map AWS region: ${awsRegion}. Falling back to EU.`);
-    return Region.EU;
+    // Return the mapped Region enum value
+    return Region[regionKey as keyof typeof Region];
+  }
+
+  // Getter for the authToken property.
+  public get authToken(): string | null {
+    return this._authToken;
   }
 
   /**
