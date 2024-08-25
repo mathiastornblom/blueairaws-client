@@ -55,7 +55,6 @@ export const AWS_CONFIG: AWSConfig = {
   },
 };
 
-
 type GigyaConfigValue = {
   gigyaRegion: string;
   apiKey: string;
@@ -112,7 +111,7 @@ export const BLUEAIR_CONFIG: APIConfig = Object.keys(RegionMap).reduce(
 );
 
 export const LOGIN_EXPIRATION = 3600 * 1000 * 24; // n hours in milliseconds
-export const BLUEAIR_API_TIMEOUT = 5 * 1000; // n seconds in milliseconds
+export const BLUEAIR_API_TIMEOUT = 10 * 1000; // n seconds in milliseconds
 
 export type BlueAirDeviceStatusResponse = {
   deviceInfo: {
@@ -196,12 +195,12 @@ export const defaultDeviceConfig: DeviceConfig = {
 };
 
 export type BlueAirDeviceDiscovery = {
-  mac: string;
+  'mac': string;
   'mcu-firmware': string;
-  name: string;
-  type: string;
+  'name': string;
+  'type': string;
   'user-type': string;
-  uuid: string;
+  'uuid': string;
   'wifi-firmware': string;
 };
 

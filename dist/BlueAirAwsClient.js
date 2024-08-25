@@ -95,7 +95,7 @@ class BlueAirAwsClient {
                 try {
                     const response = yield axios_1.default.get(url, {
                         headers: {
-                            Authorization: `Basic ${this.base64Credentials}`,
+                            'Authorization': `Basic ${this.base64Credentials}`,
                             'X-API-KEY-TOKEN': this.API_KEY_TOKEN,
                         },
                     });
@@ -172,12 +172,21 @@ class BlueAirAwsClient {
     login() {
         return __awaiter(this, void 0, void 0, function* () {
             console.debug('Logging in...');
-            const { token, secret } = yield this.gigyaApi.getGigyaSession();
-            const { jwt } = yield this.gigyaApi.getGigyaJWT(token, secret);
-            const { accessToken } = yield this.getAwsAccessToken(jwt);
-            this.last_login = Date.now();
-            this._authToken = accessToken;
-            console.debug('Logged in');
+            try {
+                const { token, secret } = yield this.gigyaApi.getGigyaSession();
+                console.debug('Gigya session token:', token, 'secret:', secret);
+                const { jwt } = yield this.gigyaApi.getGigyaJWT(token, secret);
+                console.debug('Gigya JWT:', jwt);
+                const { accessToken } = yield this.getAwsAccessToken(jwt);
+                console.debug('AWS access token:', accessToken);
+                this.last_login = Date.now();
+                this._authToken = accessToken;
+                console.debug('Logged in successfully');
+            }
+            catch (error) {
+                console.error('Error during login:', error);
+                throw error; // Re-throw to handle it in the calling function
+            }
         });
     }
     /**
@@ -504,7 +513,7 @@ class BlueAirAwsClient {
                 const axiosConfig = {
                     url: `${this.blueAirApiUrl}${url}`,
                     method: method,
-                    headers: Object.assign({ Accept: '*/*', 'Content-Type': 'application/json', 'User-Agent': 'Blueair/58 CFNetwork/1327.0.4 Darwin/21.2.0', Connection: 'keep-alive', 'Accept-Encoding': 'gzip, deflate, br', Authorization: `Bearer ${this._authToken}`, idtoken: this._authToken || '' }, headers),
+                    headers: Object.assign({ 'Accept': '*/*', 'Content-Type': 'application/json', 'User-Agent': 'Blueair/58 CFNetwork/1327.0.4 Darwin/21.2.0', 'Connection': 'keep-alive', 'Accept-Encoding': 'gzip, deflate, br', 'Authorization': `Bearer ${this._authToken}`, 'idtoken': this._authToken || '' }, headers),
                     data: data,
                     signal: controller.signal,
                     timeout: Consts_1.BLUEAIR_API_TIMEOUT,
@@ -524,7 +533,7 @@ class BlueAirAwsClient {
                 console.error('API Call - Error:', {
                     url: `${this.blueAirApiUrl}${url}`,
                     method: method,
-                    headers: Object.assign({ Accept: '*/*', Connection: 'keep-alive', 'Accept-Encoding': 'gzip, deflate, br', Authorization: `Bearer ${this._authToken}`, idtoken: this._authToken || '' }, headers),
+                    headers: Object.assign({ 'Accept': '*/*', 'Connection': 'keep-alive', 'Accept-Encoding': 'gzip, deflate, br', 'Authorization': `Bearer ${this._authToken}`, 'idtoken': this._authToken || '' }, headers),
                     body: data,
                     error: error,
                 });
@@ -549,27 +558,31 @@ class BlueAirAwsClient {
     /**
      * Retries an asynchronous operation a specified number of times with a delay between each attempt.
      * @param fn - A function that returns a Promise. This is the operation that will be retried upon failure.
-     * @param retries - The number of times to retry the operation. Default is 3.
-     * @param delay - The delay in milliseconds between each retry attempt. Default is 1000ms (1 second).
+     * @param retries - The number of times to retry the operation. Default is 5.
+     * @param delay - The delay in milliseconds between each retry attempt. Default is 10000ms (10 second).
      * @returns A Promise that resolves with the result of the function fn if it eventually succeeds,
      * or rejects with an error if all retry attempts fail.
      */
     retry(fn_1) {
-        return __awaiter(this, arguments, void 0, function* (fn, retries = 3, delay = 1000) {
+        return __awaiter(this, arguments, void 0, function* (fn, retries = 5, delay = 10000) {
             for (let attempt = 1; attempt <= retries; attempt++) {
                 try {
                     return yield fn();
                 }
                 catch (error) {
+                    console.error(`Retry attempt ${attempt} failed with error:`, error);
                     if (attempt < retries) {
+                        console.debug(`Retrying in ${delay}ms...`);
                         yield new Promise((res) => setTimeout(res, delay));
                     }
                     else {
+                        console.error('All retry attempts failed.');
                         throw error;
                     }
                 }
             }
-            throw new Error('Failed after multiple retries');
+            // Add this throw to satisfy TypeScript that all code paths return or throw
+            throw new Error('This code path should not be reached.');
         });
     }
 }

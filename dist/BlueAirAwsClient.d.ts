@@ -3,12 +3,12 @@ import { Region, BlueAirDeviceStatus, BlueAirDeviceState } from './Consts';
  * Represents a device structure. Add more properties as per your actual data.
  */
 type BlueAirDeviceDiscovery = {
-    mac: string;
+    'mac': string;
     'mcu-firmware': string;
-    name: string;
-    type: string;
+    'name': string;
+    'type': string;
     'user-type': string;
-    uuid: string;
+    'uuid': string;
     'wifi-firmware': string;
 };
 /**
@@ -162,8 +162,8 @@ export declare class BlueAirAwsClient {
     /**
      * Retries an asynchronous operation a specified number of times with a delay between each attempt.
      * @param fn - A function that returns a Promise. This is the operation that will be retried upon failure.
-     * @param retries - The number of times to retry the operation. Default is 3.
-     * @param delay - The delay in milliseconds between each retry attempt. Default is 1000ms (1 second).
+     * @param retries - The number of times to retry the operation. Default is 5.
+     * @param delay - The delay in milliseconds between each retry attempt. Default is 10000ms (10 second).
      * @returns A Promise that resolves with the result of the function fn if it eventually succeeds,
      * or rejects with an error if all retry attempts fail.
      */

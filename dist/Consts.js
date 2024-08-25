@@ -80,7 +80,7 @@ exports.BLUEAIR_CONFIG = Object.keys(exports.RegionMap).reduce((acc, key) => {
     return acc;
 }, {});
 exports.LOGIN_EXPIRATION = 3600 * 1000 * 24; // n hours in milliseconds
-exports.BLUEAIR_API_TIMEOUT = 5 * 1000; // n seconds in milliseconds
+exports.BLUEAIR_API_TIMEOUT = 10 * 1000; // n seconds in milliseconds
 exports.defaultConfig = {
     name: 'BlueAir Platform',
     uiDebug: false,

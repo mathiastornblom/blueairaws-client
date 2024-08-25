@@ -19,12 +19,12 @@ import GigyaApi from './GigyaApi';
  * Represents a device structure. Add more properties as per your actual data.
  */
 type BlueAirDeviceDiscovery = {
-  mac: string;
+  'mac': string;
   'mcu-firmware': string;
-  name: string;
-  type: string;
+  'name': string;
+  'type': string;
   'user-type': string;
-  uuid: string;
+  'uuid': string;
   'wifi-firmware': string;
 };
 
@@ -105,10 +105,10 @@ export class BlueAirAwsClient {
       const config = Object.values(AWS_CONFIG).find(
         (config) => config.regionCode === regionCode,
       );
-      
-          if (!config) {
-            throw new Error(`No config found for region: ${region}`);
-          }
+
+      if (!config) {
+        throw new Error(`No config found for region: ${region}`);
+      }
 
       this.blueAirApiUrl = `https://${config.restApiId}.execute-api.${config.awsRegion}.amazonaws.com/prod/c`;
       this.gigyaApi = new GigyaApi(this.username, this.password, region);
@@ -137,7 +137,7 @@ export class BlueAirAwsClient {
       try {
         const response = await axios.get(url, {
           headers: {
-            Authorization: `Basic ${this.base64Credentials}`,
+            'Authorization': `Basic ${this.base64Credentials}`,
             'X-API-KEY-TOKEN': this.API_KEY_TOKEN,
           },
         });
@@ -234,14 +234,24 @@ export class BlueAirAwsClient {
   private async login(): Promise<void> {
     console.debug('Logging in...');
 
-    const { token, secret } = await this.gigyaApi.getGigyaSession();
-    const { jwt } = await this.gigyaApi.getGigyaJWT(token, secret);
-    const { accessToken } = await this.getAwsAccessToken(jwt);
+    try {
+      const { token, secret } = await this.gigyaApi.getGigyaSession();
+      console.debug('Gigya session token:', token, 'secret:', secret);
 
-    this.last_login = Date.now();
-    this._authToken = accessToken;
+      const { jwt } = await this.gigyaApi.getGigyaJWT(token, secret);
+      console.debug('Gigya JWT:', jwt);
 
-    console.debug('Logged in');
+      const { accessToken } = await this.getAwsAccessToken(jwt);
+      console.debug('AWS access token:', accessToken);
+
+      this.last_login = Date.now();
+      this._authToken = accessToken;
+
+      console.debug('Logged in successfully');
+    } catch (error) {
+      console.error('Error during login:', error);
+      throw error; // Re-throw to handle it in the calling function
+    }
   }
 
   /**
@@ -636,13 +646,13 @@ export class BlueAirAwsClient {
         url: `${this.blueAirApiUrl}${url}`,
         method: method,
         headers: {
-          Accept: '*/*',
+          'Accept': '*/*',
           'Content-Type': 'application/json',
           'User-Agent': 'Blueair/58 CFNetwork/1327.0.4 Darwin/21.2.0',
-          Connection: 'keep-alive',
+          'Connection': 'keep-alive',
           'Accept-Encoding': 'gzip, deflate, br',
-          Authorization: `Bearer ${this._authToken}`,
-          idtoken: this._authToken || '', // Ensure idtoken is a string
+          'Authorization': `Bearer ${this._authToken}`,
+          'idtoken': this._authToken || '', // Ensure idtoken is a string
           ...headers,
         },
         data: data,
@@ -671,11 +681,11 @@ export class BlueAirAwsClient {
         url: `${this.blueAirApiUrl}${url}`,
         method: method,
         headers: {
-          Accept: '*/*',
-          Connection: 'keep-alive',
+          'Accept': '*/*',
+          'Connection': 'keep-alive',
           'Accept-Encoding': 'gzip, deflate, br',
-          Authorization: `Bearer ${this._authToken}`,
-          idtoken: this._authToken || '', // Ensure idtoken is a string
+          'Authorization': `Bearer ${this._authToken}`,
+          'idtoken': this._authToken || '', // Ensure idtoken is a string
           ...headers,
         },
         body: data,
@@ -704,27 +714,33 @@ export class BlueAirAwsClient {
   /**
    * Retries an asynchronous operation a specified number of times with a delay between each attempt.
    * @param fn - A function that returns a Promise. This is the operation that will be retried upon failure.
-   * @param retries - The number of times to retry the operation. Default is 3.
-   * @param delay - The delay in milliseconds between each retry attempt. Default is 1000ms (1 second).
+   * @param retries - The number of times to retry the operation. Default is 5.
+   * @param delay - The delay in milliseconds between each retry attempt. Default is 10000ms (10 second).
    * @returns A Promise that resolves with the result of the function fn if it eventually succeeds,
    * or rejects with an error if all retry attempts fail.
    */
   private async retry<T>(
     fn: () => Promise<T>,
-    retries = 3,
-    delay = 1000,
+    retries = 5,
+    delay = 10000,
   ): Promise<T> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         return await fn();
       } catch (error) {
+        console.error(`Retry attempt ${attempt} failed with error:`, error);
+
         if (attempt < retries) {
+          console.debug(`Retrying in ${delay}ms...`);
           await new Promise((res) => setTimeout(res, delay));
         } else {
+          console.error('All retry attempts failed.');
           throw error;
         }
       }
     }
-    throw new Error('Failed after multiple retries');
+
+    // Add this throw to satisfy TypeScript that all code paths return or throw
+    throw new Error('This code path should not be reached.');
   }
 }

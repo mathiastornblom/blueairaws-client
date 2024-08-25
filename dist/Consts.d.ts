@@ -85,12 +85,12 @@ export type DeviceConfig = {
 export declare const defaultConfig: Config;
 export declare const defaultDeviceConfig: DeviceConfig;
 export type BlueAirDeviceDiscovery = {
-    mac: string;
+    'mac': string;
     'mcu-firmware': string;
-    name: string;
-    type: string;
+    'name': string;
+    'type': string;
     'user-type': string;
-    uuid: string;
+    'uuid': string;
     'wifi-firmware': string;
 };
 export type BlueAirDeviceState = {
