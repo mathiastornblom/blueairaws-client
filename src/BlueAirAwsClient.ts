@@ -627,6 +627,9 @@ export class BlueAirAwsClient {
     const release = await this.mutex.acquire();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), BLUEAIR_API_TIMEOUT);
+
+    await this.checkTokenExpiration();
+
     try {
       // console.debug('API Call - Request:', {
       //   url: `${this.blueAirApiUrl}${url}`,
@@ -691,6 +694,42 @@ export class BlueAirAwsClient {
         body: data,
         error: error,
       });
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          // Server responded with a non-200 status code
+          if (error.response.status === 403) {
+            console.error(
+              `403 Forbidden: Authentication failed or you lack permissions. Details: ${error.response.data}`,
+            );
+          } else if (error.response.status === 401) {
+            console.error(
+              `401 Unauthorized: Invalid token. Please re-authenticate. Details: ${error.response.data}`,
+            );
+          } else {
+            console.error(
+              `API error: Received ${error.response.status} status. Details: ${error.response.data}`,
+            );
+          }
+        } else if (error.request) {
+          // Request was made but no response received
+          console.error(
+            'No response from the API. Possible network issue or timeout.',
+          );
+        } else {
+          // Something went wrong during the setup of the request
+          console.error(`Request setup error: ${error.message}`);
+        }
+      } else if (axios.isCancel(error)) {
+        // Handle timeout or aborted request
+        console.error('Request was cancelled due to timeout.');
+      } else {
+        // Handle other unexpected errors
+        if (error instanceof Error) {
+          console.error(`Unexpected error occurred: ${error.message}`);
+        } else {
+          console.error('Unexpected error occurred:', error);
+        }
+      }
 
       if (retries > 0) {
         return this.apiCall(url, data, method, headers, retries - 1);
@@ -722,7 +761,7 @@ export class BlueAirAwsClient {
   private async retry<T>(
     fn: () => Promise<T>,
     retries = 5,
-    delay = 10000,
+    delay = 1000,
   ): Promise<T> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
@@ -731,8 +770,10 @@ export class BlueAirAwsClient {
         console.error(`Retry attempt ${attempt} failed with error:`, error);
 
         if (attempt < retries) {
-          console.debug(`Retrying in ${delay}ms...`);
-          await new Promise((res) => setTimeout(res, delay));
+          // Exponential backoff: increase delay with each attempt
+          const backoffDelay = delay * Math.pow(2, attempt);
+          console.debug(`Retrying in ${backoffDelay}ms...`);
+          await new Promise((res) => setTimeout(res, backoffDelay));
         } else {
           console.error('All retry attempts failed.');
           throw error;
