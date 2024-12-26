@@ -64,6 +64,7 @@ export declare class BlueAirAwsClient {
     private login;
     /**
      * Checks if the token is expired and renews it if necessary.
+     * Skips expiration check if `last_login` is zero (meaning no login has occurred yet).
      */
     private checkTokenExpiration;
     /**

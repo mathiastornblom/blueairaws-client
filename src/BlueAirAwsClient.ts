@@ -80,7 +80,7 @@ export class BlueAirAwsClient {
    * @returns {Promise<boolean>} True if initialization was successful, false otherwise.
    */
   public async initialize(region?: Region): Promise<boolean> {
-    console.debug('Initializing client...');
+    //console.debug('Initializing client...');
 
     try {
       // Determine the region if not provided
@@ -131,7 +131,7 @@ export class BlueAirAwsClient {
     const url = `${this.HOMEHOST_ENDPOINT}user/${encodeURIComponent(
       this.username,
     )}/homehost/`;
-    console.log(`Determining endpoint with URL: ${url}`);
+    console.debug(`Determining endpoint with URL: ${url}`);
 
     return this.retry(async () => {
       try {
@@ -143,13 +143,13 @@ export class BlueAirAwsClient {
         });
 
         const endpoint = response.data; // Example: "api-us-east-1.blueair.io"
-        console.log(`Determined endpoint: ${endpoint}`);
+        //console.debug(`Determined endpoint: ${endpoint}`);
 
         const awsRegion = this.extractAwsRegion(endpoint);
-        console.log(`Extracted AWS region: ${awsRegion}`);
+        console.debug(`Extracted AWS region: ${awsRegion}`);
 
         const region = this.mapAwsRegionToRegion(awsRegion);
-        console.log(`Mapped AWS region: ${awsRegion} to Region: ${region}`);
+        console.debug(`Mapped AWS region: ${awsRegion} to Region: ${region}`);
 
         return region;
       } catch (error) {
@@ -256,11 +256,35 @@ export class BlueAirAwsClient {
 
   /**
    * Checks if the token is expired and renews it if necessary.
+   * Skips expiration check if `last_login` is zero (meaning no login has occurred yet).
    */
   private async checkTokenExpiration(): Promise<void> {
-    if (LOGIN_EXPIRATION < Date.now() - this.last_login) {
-      console.debug('Token expired, logging in again');
+    // If last_login is zero, it indicates that the user hasn't logged in yet.
+    // Skip the token expiration check to avoid unnecessary login attempts.
+    if (this.last_login === 0) {
+      console.debug('No previous login found. Skipping expiration check.');
+      return;
+    }
+
+    const currentTime = Date.now();
+    const timeElapsedSinceLastLogin = currentTime - this.last_login;
+
+    console.debug('Checking token expiration...');
+    console.debug('Current time:', new Date(currentTime).toISOString());
+    console.debug('Last login time:', new Date(this.last_login).toISOString());
+    console.debug(
+      'Time elapsed since last login (ms):',
+      timeElapsedSinceLastLogin,
+    );
+    console.debug('Configured token expiration (ms):', LOGIN_EXPIRATION);
+
+    // If the time elapsed exceeds the configured expiration, renew the token.
+    if (timeElapsedSinceLastLogin > LOGIN_EXPIRATION) {
+      console.debug('Token has expired, attempting to log in again...');
       await this.login();
+      console.debug('Token renewed successfully.');
+    } else {
+      console.debug('Token is still valid, no action needed.');
     }
   }
 
@@ -272,21 +296,50 @@ export class BlueAirAwsClient {
   private async getAwsAccessToken(
     jwt: string,
   ): Promise<{ accessToken: string }> {
-    console.debug('Getting AWS access token...');
+    console.debug('Starting to get AWS access token...');
 
-    const response = await this.apiCall('/login', undefined, 'POST', {
-      Authorization: `Bearer ${jwt}`,
-      idtoken: jwt, // Make sure jwt is not null or undefined
-    });
+    // Log JWT details (partially, to avoid exposing sensitive data)
+    console.debug('JWT provided (first 50 chars):', jwt.substring(0, 50));
 
-    if (!response.access_token) {
-      throw new Error(`AWS access token error: ${JSON.stringify(response)}`);
+    try {
+      // Debug the headers used in the API call
+      const headers = {
+        Authorization: `Bearer ${jwt}`,
+        idtoken: jwt, // Ensure jwt is not null or undefined
+      };
+
+      console.debug('Making API call to AWS /login with headers:', headers);
+
+      // Make the API call
+      const response = await this.apiCall('/login', undefined, 'POST', headers);
+
+      // Log the raw response for analysis
+      console.debug(
+        'AWS access token response:',
+        JSON.stringify(response, null, 2),
+      );
+
+      // Check for the presence of the access_token
+      if (!response.access_token) {
+        console.error('AWS access token missing in response:', response);
+        throw new Error(`AWS access token error: ${JSON.stringify(response)}`);
+      }
+
+      // Successfully retrieved token
+      console.debug('AWS access token received:', response.access_token);
+      return { accessToken: response.access_token };
+    } catch (error) {
+      // Handle and log errors
+      console.error('Error while fetching AWS access token:', error);
+
+      if (error instanceof Error && error.message.includes('403')) {
+        console.error('Potential authentication error. Please check the JWT.');
+      } else if (error instanceof Error && error.message.includes('timeout')) {
+        console.error('Timeout occurred during AWS access token retrieval.');
+      }
+
+      throw error; // Re-throw the error for upstream handling
     }
-
-    console.debug('AWS access token received');
-    return {
-      accessToken: response.access_token,
-    };
   }
 
   /**
@@ -631,19 +684,19 @@ export class BlueAirAwsClient {
     await this.checkTokenExpiration();
 
     try {
-      // console.debug('API Call - Request:', {
-      //   url: `${this.blueAirApiUrl}${url}`,
-      //   method: method,
-      //   headers: {
-      //     Accept: '*/*',
-      //     Connection: 'keep-alive',
-      //     'Accept-Encoding': 'gzip, deflate, br',
-      //     Authorization: `Bearer ${this._authToken}`,
-      //     idtoken: this._authToken || '', // Ensure idtoken is a string
-      //     ...headers,
-      //   },
-      //   body: data,
-      // });
+      console.debug('API Call - Request:', {
+        url: `${this.blueAirApiUrl}${url}`,
+        method: method,
+        headers: {
+          'Accept': '*/*',
+          'Connection': 'keep-alive',
+          'Accept-Encoding': 'gzip, deflate, br',
+          'Authorization': `Bearer ${this._authToken}`,
+          'idtoken': this._authToken || '', // Ensure idtoken is a string
+          ...headers,
+        },
+        body: data,
+      });
 
       const axiosConfig: AxiosRequestConfig = {
         url: `${this.blueAirApiUrl}${url}`,
@@ -665,11 +718,11 @@ export class BlueAirAwsClient {
 
       const response: AxiosResponse<T> = await axios(axiosConfig);
 
-      // console.debug('API Call - Response:', {
-      //   status: response.status,
-      //   statusText: response.statusText,
-      //   body: response.data,
-      // });
+      console.debug('API Call - Response:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: response.data,
+      });
 
       if (response.status !== 200) {
         throw new Error(

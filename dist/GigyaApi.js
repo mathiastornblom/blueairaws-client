@@ -44,13 +44,23 @@ class GigyaApi {
                 apiKey: this.api_key,
                 loginID: this.username,
                 password: this.password,
-                targetEnv: "mobile",
+                targetEnv: 'mobile',
             });
-            const response = yield this.apiCall("/accounts.login", params.toString());
+            console.debug('GigyaApi: Attempting login with', {
+                apiKey: this.api_key,
+                loginID: this.username,
+                password: this.password,
+            });
+            console.debug('GigyaApi: Login API request', {
+                url: this.gigyaApiUrl,
+                params,
+            });
+            const response = yield this.apiCall('/accounts.login', params.toString());
+            console.debug('GigyaApi: Login API response', response);
             if (!response.sessionInfo) {
                 throw new Error(`Gigya session error: sessionInfo in response: ${JSON.stringify(response)}`);
             }
-            console.debug("Gigya session received");
+            console.debug('Gigya session received');
             return {
                 token: response.sessionInfo.sessionToken,
                 secret: response.sessionInfo.sessionSecret,
@@ -68,13 +78,22 @@ class GigyaApi {
             const params = new URLSearchParams({
                 oauth_token: token,
                 secret: secret,
-                targetEnv: "mobile",
+                targetEnv: 'mobile',
             });
-            const response = yield this.apiCall("/accounts.getJWT", params.toString());
+            console.debug('GigyaApi: Attempting getGigyaJWT with', {
+                oauth_token: token,
+                asecret: secret,
+            });
+            console.debug('GigyaApi: Get JWT request', {
+                url: this.gigyaApiUrl,
+                params,
+            });
+            const response = yield this.apiCall('/accounts.getJWT', params.toString());
+            console.debug('GigyaApi: get JWT response', response);
             if (!response.id_token) {
                 throw new Error(`Gigya JWT error: no id_token in response: ${JSON.stringify(response)}`);
             }
-            console.debug("Gigya JWT received");
+            console.debug('Gigya JWT received');
             return {
                 jwt: response.id_token,
             };
@@ -86,12 +105,12 @@ class GigyaApi {
             try {
                 const axiosConfig = {
                     url: `${this.gigyaApiUrl}${url}?${data}`,
-                    method: "POST",
+                    method: 'POST',
                     headers: {
-                        "Content-Type": "application/x-www-form-urlencoded",
-                        Accept: "*/*",
-                        Connection: "keep-alive",
-                        "Accept-Encoding": "gzip, deflate, br",
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Accept': '*/*',
+                        'Connection': 'keep-alive',
+                        'Accept-Encoding': 'gzip, deflate, br',
                     },
                     signal: controller.signal,
                     timeout: 10000, // Timeout for the request

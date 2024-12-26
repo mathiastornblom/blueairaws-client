@@ -1,4 +1,4 @@
-import { Region } from "./Consts";
+import { Region } from './Consts';
 /**
  * Gigya API client for handling authentication.
  */
