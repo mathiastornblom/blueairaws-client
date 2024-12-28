@@ -143,7 +143,7 @@ export class BlueAirAwsClient {
         });
 
         const endpoint = response.data; // Example: "api-us-east-1.blueair.io"
-        //console.debug(`Determined endpoint: ${endpoint}`);
+        console.debug(`Determined endpoint: ${endpoint}`);
 
         const awsRegion = this.extractAwsRegion(endpoint);
         console.debug(`Extracted AWS region: ${awsRegion}`);
@@ -675,7 +675,7 @@ export class BlueAirAwsClient {
     data?: string | object,
     method = 'POST',
     headers?: object,
-    retries = 3,
+    retries = 5,
   ): Promise<T> {
     const release = await this.mutex.acquire();
     const controller = new AbortController();
@@ -684,119 +684,101 @@ export class BlueAirAwsClient {
     await this.checkTokenExpiration();
 
     try {
-      console.debug('API Call - Request:', {
+      const response: AxiosResponse<T> = await axios({
         url: `${this.blueAirApiUrl}${url}`,
-        method: method,
+        method,
         headers: {
           'Accept': '*/*',
           'Connection': 'keep-alive',
           'Accept-Encoding': 'gzip, deflate, br',
           'Authorization': `Bearer ${this._authToken}`,
-          'idtoken': this._authToken || '', // Ensure idtoken is a string
           ...headers,
         },
-        body: data,
-      });
-
-      const axiosConfig: AxiosRequestConfig = {
-        url: `${this.blueAirApiUrl}${url}`,
-        method: method,
-        headers: {
-          'Accept': '*/*',
-          'Content-Type': 'application/json',
-          'User-Agent': 'Blueair/58 CFNetwork/1327.0.4 Darwin/21.2.0',
-          'Connection': 'keep-alive',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Authorization': `Bearer ${this._authToken}`,
-          'idtoken': this._authToken || '', // Ensure idtoken is a string
-          ...headers,
-        },
-        data: data,
+        data,
         signal: controller.signal,
         timeout: BLUEAIR_API_TIMEOUT,
-      };
-
-      const response: AxiosResponse<T> = await axios(axiosConfig);
+      });
 
       console.debug('API Call - Response:', {
         status: response.status,
-        statusText: response.statusText,
         body: response.data,
+        headers: response.headers,
       });
 
-      if (response.status !== 200) {
-        throw new Error(
-          `API call error with status ${response.status}: ${
-            response.statusText
-          }, ${JSON.stringify(response.data)}`,
+      // Check for custom status code 229
+      if (response.status === 229) {
+        const backoff = Math.min(1000 * Math.pow(2, 3 - retries), 60000); // Exponential backoff capped at 60 seconds
+        const jitter = Math.random() * 500; // Add jitter to backoff time
+        const retryDelay = backoff + jitter;
+
+        console.warn(
+          `Custom status 229 detected. Retrying in ${retryDelay / 1000}s...`,
         );
+
+        await new Promise((res) => setTimeout(res, retryDelay));
+
+        if (retries > 0) {
+          return this.apiCall(url, data, method, headers, retries - 1);
+        } else {
+          throw new Error('Exceeded retries for status 229.');
+        }
       }
+
       return response.data;
     } catch (error) {
-      console.error('API Call - Error:', {
-        url: `${this.blueAirApiUrl}${url}`,
-        method: method,
-        headers: {
-          'Accept': '*/*',
-          'Connection': 'keep-alive',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Authorization': `Bearer ${this._authToken}`,
-          'idtoken': this._authToken || '', // Ensure idtoken is a string
-          ...headers,
-        },
-        body: data,
-        error: error,
-      });
-      if (axios.isAxiosError(error)) {
-        if (error.response) {
-          // Server responded with a non-200 status code
-          if (error.response.status === 403) {
-            console.error(
-              `403 Forbidden: Authentication failed or you lack permissions. Details: ${error.response.data}`,
-            );
-          } else if (error.response.status === 401) {
-            console.error(
-              `401 Unauthorized: Invalid token. Please re-authenticate. Details: ${error.response.data}`,
-            );
+      if (axios.isAxiosError(error) && error.response) {
+        const status = error.response.status;
+
+        if (status === 429) {
+          // Handle rate-limiting with exponential backoff
+          const backoff = Math.min(1000 * Math.pow(2, 3 - retries), 60000); // Exponential backoff capped at 60 seconds
+          const jitter = Math.random() * 500; // Add jitter to backoff time
+          const retryDelay = backoff + jitter;
+
+          console.warn(
+            `Rate limit exceeded (status ${status}). Retrying in ${
+              retryDelay / 1000
+            }s...`,
+          );
+
+          await new Promise((res) => setTimeout(res, retryDelay));
+
+          if (retries > 0) {
+            return this.apiCall(url, data, method, headers, retries - 1);
           } else {
-            console.error(
-              `API error: Received ${error.response.status} status. Details: ${error.response.data}`,
-            );
+            throw new Error('Exceeded retries for status 429.');
           }
-        } else if (error.request) {
-          // Request was made but no response received
+        } else if (status === 401 || status === 403) {
           console.error(
-            'No response from the API. Possible network issue or timeout.',
+            `Authentication error (status ${status}). Details:`,
+            error.response.data,
+          );
+          throw new Error(
+            `Authentication failed: ${error.response.data.message}`,
           );
         } else {
-          // Something went wrong during the setup of the request
-          console.error(`Request setup error: ${error.message}`);
+          console.error(
+            `API error (status ${status}). Details:`,
+            error.response.data,
+          );
+          throw new Error(
+            `API error with status ${status}: ${JSON.stringify(
+              error.response.data,
+            )}`,
+          );
         }
-      } else if (axios.isCancel(error)) {
-        // Handle timeout or aborted request
-        console.error('Request was cancelled due to timeout.');
       } else {
-        // Handle other unexpected errors
-        if (error instanceof Error) {
-          console.error(`Unexpected error occurred: ${error.message}`);
-        } else {
-          console.error('Unexpected error occurred:', error);
-        }
+        console.error('Unexpected error during API call:', error);
       }
 
       if (retries > 0) {
+        console.debug(`Retrying API call (${retries - 1} retries left)...`);
         return this.apiCall(url, data, method, headers, retries - 1);
-      } else {
-        if (axios.isCancel(error)) {
-          throw new Error(
-            `API call failed after ${3 - retries} retries with timeout.`,
-          );
-        } else {
-          throw new Error(
-            `API call failed after ${3 - retries} retries with error: ${error}`,
-          );
-        }
       }
+
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      throw new Error(`API call failed after retries: ${errorMessage}`);
     } finally {
       clearTimeout(timeout);
       release();
@@ -814,27 +796,34 @@ export class BlueAirAwsClient {
   private async retry<T>(
     fn: () => Promise<T>,
     retries = 5,
-    delay = 1000,
+    baseDelay = 1000, // Base delay in milliseconds
   ): Promise<T> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         return await fn();
       } catch (error) {
-        console.error(`Retry attempt ${attempt} failed with error:`, error);
-
-        if (attempt < retries) {
-          // Exponential backoff: increase delay with each attempt
-          const backoffDelay = delay * Math.pow(2, attempt);
-          console.debug(`Retrying in ${backoffDelay}ms...`);
-          await new Promise((res) => setTimeout(res, backoffDelay));
-        } else {
+        if (attempt >= retries) {
           console.error('All retry attempts failed.');
-          throw error;
+          throw error; // Re-throw the error after exhausting retries
         }
+
+        // If rate limiting error is detected
+        if (axios.isAxiosError(error) && error.response?.status === 429) {
+          console.warn(
+            `Rate limit exceeded on attempt ${attempt}. Retrying with backoff...`,
+          );
+        } else {
+          console.error(`Retry attempt ${attempt} failed with error:`, error);
+        }
+
+        // Apply exponential backoff with jitter
+        const delay = Math.random() * baseDelay * Math.pow(2, attempt);
+        console.debug(`Retrying in ${Math.round(delay)}ms...`);
+        await new Promise((res) => setTimeout(res, delay));
       }
     }
 
-    // Add this throw to satisfy TypeScript that all code paths return or throw
+    // Fallback for TypeScript type safety
     throw new Error('This code path should not be reached.');
   }
 }
