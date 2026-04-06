@@ -21,7 +21,8 @@
   "dependencies": {
     "async-mutex": "^0.5.0",
     "axios": "1.7.9",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "qrcode-generator": "^1.5.2"
   },
   "devDependencies": {
     "@types/chai": "^5.0.1",

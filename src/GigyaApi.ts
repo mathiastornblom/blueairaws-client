@@ -41,7 +41,7 @@ export default class GigyaApi {
     console.debug('GigyaApi: Attempting login with', {
       apiKey: this.api_key,
       loginID: this.username,
-      password: this.password,
+      password: '[REDACTED]',
     });
     console.debug('GigyaApi: Login API request', {
       url: this.gigyaApiUrl,
@@ -49,6 +49,8 @@ export default class GigyaApi {
     });
     const response = await this.apiCall('/accounts.login', params.toString());
     console.debug('GigyaApi: Login API response', response);
+
+    this.throwIfGigyaError(response, 'login');
 
     if (!response.sessionInfo) {
       throw new Error(
@@ -92,6 +94,8 @@ export default class GigyaApi {
     const response = await this.apiCall('/accounts.getJWT', params.toString());
     console.debug('GigyaApi: get JWT response', response);
 
+    this.throwIfGigyaError(response, 'getJWT');
+
     if (!response.id_token) {
       throw new Error(
         `Gigya JWT error: no id_token in response: ${JSON.stringify(response)}`,
@@ -104,7 +108,13 @@ export default class GigyaApi {
     };
   }
 
-  private async apiCall(url: string, data: string, retries = 3): Promise<any> {
+  // Gigya error codes that are transient and safe to retry
+  private static readonly RETRYABLE_GIGYA_CODES = new Set([
+    403048, // Api rate limit exceeded
+    500001, // General Server Error
+  ]);
+
+  private async apiCall(url: string, data: string, retries = 5): Promise<any> {
     const controller = new AbortController();
     try {
       const axiosConfig: AxiosRequestConfig = {
@@ -117,7 +127,7 @@ export default class GigyaApi {
           'Accept-Encoding': 'gzip, deflate, br',
         },
         signal: controller.signal,
-        timeout: 10000, // Timeout for the request
+        timeout: 10000,
       };
 
       const response: AxiosResponse<any> = await axios(axiosConfig);
@@ -125,20 +135,58 @@ export default class GigyaApi {
 
       if (response.status !== 200) {
         throw new Error(
-          `API call error with status ${response.status}: ${
-            response.statusText
-          }, ${JSON.stringify(json)}`,
+          `API call error with status ${response.status}: ${response.statusText}, ${JSON.stringify(json)}`,
         );
       }
+
+      // Gigya returns errors in the body with HTTP 200 — handle retryable ones here
+      if (json.errorCode && GigyaApi.RETRYABLE_GIGYA_CODES.has(json.errorCode)) {
+        if (retries > 0) {
+          const delay = Math.min(2000 * Math.pow(2, 5 - retries), 30000) + Math.random() * 1000;
+          console.warn(
+            `Gigya transient error ${json.errorCode} (${json.errorMessage}), retrying in ${Math.round(delay)}ms... (${retries} retries left)`,
+          );
+          await new Promise((res) => setTimeout(res, delay));
+          return this.apiCall(url, data, retries - 1);
+        }
+        throw new Error(
+          `Gigya error ${json.errorCode} (${json.errorMessage}) after all retries exhausted`,
+        );
+      }
+
       return json;
     } catch (error) {
-      console.error(`API call failed: ${error}`);
-      if (retries > 0) {
-        console.debug(`Retrying API call (${retries} retries left)...`);
-        return this.apiCall(url, data, retries - 1);
-      } else {
-        throw new Error(`API call failed after ${retries} retries`);
+      // Don't retry if we explicitly threw above (retries already exhausted)
+      if (error instanceof Error && error.message.includes('after all retries exhausted')) {
+        throw error;
       }
+      if (retries > 0) {
+        const delay = Math.min(2000 * Math.pow(2, 5 - retries), 30000) + Math.random() * 1000;
+        console.warn(`Gigya API call failed, retrying in ${Math.round(delay)}ms... (${retries} retries left): ${error}`);
+        await new Promise((res) => setTimeout(res, delay));
+        return this.apiCall(url, data, retries - 1);
+      }
+      throw new Error(`Gigya API call failed after all retries: ${error}`);
     }
+  }
+
+  private throwIfGigyaError(response: any, operation: string): void {
+    if (!response || response.errorCode === undefined) {
+      return;
+    }
+
+    if (response.errorCode === 0) {
+      return;
+    }
+
+    if (response.errorCode === 403120) {
+      throw new Error(
+        'Gigya account is temporarily locked out (errorCode 403120). Wait before retrying, verify credentials, or unlock/reset the account in Blueair/Gigya.',
+      );
+    }
+
+    throw new Error(
+      `Gigya ${operation} failed: ${response.errorMessage || 'Unknown error'} (errorCode: ${response.errorCode}, statusCode: ${response.statusCode || 'n/a'})`,
+    );
   }
 }

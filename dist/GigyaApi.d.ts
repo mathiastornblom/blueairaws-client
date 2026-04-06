@@ -31,5 +31,7 @@ export default class GigyaApi {
     getGigyaJWT(token: string, secret: string): Promise<{
         jwt: string;
     }>;
+    private static readonly RETRYABLE_GIGYA_CODES;
     private apiCall;
+    private throwIfGigyaError;
 }

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>QR Generator</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app">
+      <section class="panel controls">
+        <h1>QR Generator</h1>
+        <p class="subtitle">Skapa egna QR-koder utan reklam.</p>
+
+        <label for="contentType">Innehållstyp</label>
+        <select id="contentType">
+          <option value="text">Text</option>
+          <option value="url">URL</option>
+          <option value="email">E-post</option>
+          <option value="phone">Telefon</option>
+          <option value="sms">SMS</option>
+          <option value="wifi">WiFi</option>
+        </select>
+
+        <div id="fields"></div>
+
+        <h2>Frame</h2>
+        <div class="grid three" id="framePicker">
+          <label class="choice-card">
+            <input type="radio" name="frameStyle" value="none" checked />
+            <span>Ingen</span>
+          </label>
+          <label class="choice-card">
+            <input type="radio" name="frameStyle" value="border" />
+            <span>Border</span>
+          </label>
+          <label class="choice-card">
+            <input type="radio" name="frameStyle" value="scanme" />
+            <span>Scan me</span>
+          </label>
+        </div>
+
+        <label>
+          Frame-text
+          <input id="frameText" type="text" value="SCAN ME" maxlength="24" />
+        </label>
+
+        <h2>Shape & Color</h2>
+        <div class="grid three" id="shapePicker">
+          <label class="choice-card">
+            <input type="radio" name="dotShape" value="square" checked />
+            <span>Square</span>
+          </label>
+          <label class="choice-card">
+            <input type="radio" name="dotShape" value="rounded" />
+            <span>Rounded</span>
+          </label>
+          <label class="choice-card">
+            <input type="radio" name="dotShape" value="dot" />
+            <span>Dot</span>
+          </label>
+        </div>
+
+        <div class="grid two">
+          <label>
+            Storlek (px)
+            <input id="size" type="number" min="128" max="1024" step="32" value="320" />
+          </label>
+          <label>
+            Marginal
+            <input id="margin" type="number" min="0" max="8" step="1" value="2" />
+          </label>
+
+          <label>
+            Färg
+            <input id="darkColor" type="color" value="#111111" />
+            <span class="color-meta"><span id="darkSwatch" class="swatch"></span><code id="darkHex">#111111</code></span>
+          </label>
+          <label>
+            Bakgrund
+            <input id="lightColor" type="color" value="#ffffff" />
+            <span class="color-meta"><span id="lightSwatch" class="swatch"></span><code id="lightHex">#ffffff</code></span>
+          </label>
+
+          <label>
+            Felkorrigering
+            <select id="errorCorrectionLevel">
+              <option value="L">L (7%)</option>
+              <option value="M" selected>M (15%)</option>
+              <option value="Q">Q (25%)</option>
+              <option value="H">H (30%)</option>
+            </select>
+          </label>
+        </div>
+
+        <h2>Logo</h2>
+        <div class="logo-tools">
+          <label class="upload-btn">
+            Upload your own
+            <input id="logoFile" type="file" accept="image/*" />
+          </label>
+          <button id="removeLogo" type="button" class="ghost">Ta bort logga</button>
+        </div>
+        <label>
+          Logostorlek (%)
+          <input id="logoSize" type="range" min="10" max="24" value="16" />
+        </label>
+
+        <button id="generateBtn" type="button">Generera QR-kod</button>
+      </section>
+
+      <section class="panel preview">
+        <h2>Förhandsvisning</h2>
+        <div id="previewWrap" class="preview-wrap">
+          <canvas id="qrCanvas" width="320" height="320"></canvas>
+        </div>
+
+        <div class="actions">
+          <button id="downloadPng" type="button">Ladda ner PNG</button>
+          <button id="downloadSvg" type="button">Ladda ner SVG</button>
+        </div>
+
+        <p id="status" class="status" role="status"></p>
+      </section>
+    </main>
+
+    <script src="./vendor/qrcode.js"></script>
+    <script src="./app.js"></script>
+  </body>
+</html>
