@@ -595,7 +595,9 @@ class BlueAirAwsClient {
                     }
                 }
                 else {
-                    console.error('Unexpected error during API call:', error);
+                    // Log only the message: the full axios error contains the request
+                    // headers, including the Bearer token.
+                    console.error('Unexpected error during API call:', error instanceof Error ? error.message : String(error));
                 }
                 if (retries > 0) {
                     console.debug(`Retrying API call (${retries - 1} retries left)...`);
