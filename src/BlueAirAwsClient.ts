@@ -443,7 +443,71 @@ export class BlueAirAwsClient {
       }),
     );
 
+    // Newer devices (e.g. Blue Pure 311i Max) return an empty `sensordata`
+    // array from /r/initial; their readings are only available via telemetry.
+    for (const status of deviceStatuses) {
+      if (Object.keys(status.sensorData).length > 0) continue;
+      try {
+        status.sensorData = await this.getLatestSensorData(accountuuid, status.id);
+      } catch (error) {
+        console.warn(
+          `getDeviceStatus: telemetry fallback failed for ${status.id}:`,
+          error instanceof Error ? error.message : String(error),
+        );
+      }
+    }
+
     return deviceStatuses;
+  }
+
+  /**
+   * Fetches the most recent sensor sample for a device from the telemetry
+   * endpoint (5-minute resolution).
+   * @param accountuuid - the main account uuid
+   * @param uuid - The unique identifier of the device.
+   * @param lookbackMs - How far back to search for a sample (default 1 h).
+   */
+  public async getLatestSensorData(
+    accountuuid: string,
+    uuid: string,
+    lookbackMs = 60 * 60 * 1000,
+  ): Promise<BlueAirDeviceSensorData> {
+    const now = Math.floor(Date.now() / 1000);
+    const params = new URLSearchParams({
+      did: uuid,
+      from: String(now - Math.floor(lookbackMs / 1000)),
+      to: String(now),
+    });
+    for (const s of Object.keys(BlueAirDeviceSensorDataMap)) {
+      params.append('s', s);
+    }
+
+    // Response shape: [{ sensors: [...names], datapoints: [[ts, v1, v2, ...], ...] }]
+    // where every element, including the timestamp, is a string or null.
+    const data = await this.apiCall<
+      { sensors: string[] | null; datapoints: (string | null)[][] }[] | null
+    >(`/${accountuuid}/r/telemetry/5m/historical?${params}`, undefined, 'GET');
+
+    const series = Array.isArray(data) ? data[0] : undefined;
+    if (!series?.sensors?.length || !series.datapoints?.length) {
+      return {};
+    }
+
+    const latest = series.datapoints.reduce((a, b) =>
+      Number(b[0] ?? 0) > Number(a[0] ?? 0) ? b : a,
+    );
+
+    return series.sensors.reduce((acc, sensorName, idx) => {
+      const key =
+        BlueAirDeviceSensorDataMap[
+          sensorName as keyof typeof BlueAirDeviceSensorDataMap
+        ];
+      const value = latest[idx + 1];
+      if (key && value !== null && value !== undefined && value !== '') {
+        acc[key as keyof BlueAirDeviceSensorData] = Number(value);
+      }
+      return acc;
+    }, {} as BlueAirDeviceSensorData);
   }
 
   /**

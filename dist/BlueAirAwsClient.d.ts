@@ -1,4 +1,4 @@
-import { Region, BlueAirDeviceStatus, BlueAirDeviceState } from './Consts';
+import { Region, BlueAirDeviceStatus, BlueAirDeviceSensorData, BlueAirDeviceState } from './Consts';
 /**
  * Represents a device structure. Add more properties as per your actual data.
  */
@@ -87,6 +87,14 @@ export declare class BlueAirAwsClient {
      * @throws {Error} - If the fetch operation fails.
      */
     getDeviceStatus(accountuuid: string, uuids: string[]): Promise<BlueAirDeviceStatus[]>;
+    /**
+     * Fetches the most recent sensor sample for a device from the telemetry
+     * endpoint (5-minute resolution).
+     * @param accountuuid - the main account uuid
+     * @param uuid - The unique identifier of the device.
+     * @param lookbackMs - How far back to search for a sample (default 1 h).
+     */
+    getLatestSensorData(accountuuid: string, uuid: string, lookbackMs?: number): Promise<BlueAirDeviceSensorData>;
     /**
      * Sets the status of a specified device.
      * @param uuid - The unique identifier of the device.

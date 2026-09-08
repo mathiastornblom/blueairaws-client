@@ -335,7 +335,56 @@ class BlueAirAwsClient {
                     return acc;
                 }, {}),
             }));
+            // Newer devices (e.g. Blue Pure 311i Max) return an empty `sensordata`
+            // array from /r/initial; their readings are only available via telemetry.
+            for (const status of deviceStatuses) {
+                if (Object.keys(status.sensorData).length > 0)
+                    continue;
+                try {
+                    status.sensorData = yield this.getLatestSensorData(accountuuid, status.id);
+                }
+                catch (error) {
+                    console.warn(`getDeviceStatus: telemetry fallback failed for ${status.id}:`, error instanceof Error ? error.message : String(error));
+                }
+            }
             return deviceStatuses;
+        });
+    }
+    /**
+     * Fetches the most recent sensor sample for a device from the telemetry
+     * endpoint (5-minute resolution).
+     * @param accountuuid - the main account uuid
+     * @param uuid - The unique identifier of the device.
+     * @param lookbackMs - How far back to search for a sample (default 1 h).
+     */
+    getLatestSensorData(accountuuid_1, uuid_1) {
+        return __awaiter(this, arguments, void 0, function* (accountuuid, uuid, lookbackMs = 60 * 60 * 1000) {
+            var _a, _b;
+            const now = Math.floor(Date.now() / 1000);
+            const params = new URLSearchParams({
+                did: uuid,
+                from: String(now - Math.floor(lookbackMs / 1000)),
+                to: String(now),
+            });
+            for (const s of Object.keys(Consts_1.BlueAirDeviceSensorDataMap)) {
+                params.append('s', s);
+            }
+            // Response shape: [{ sensors: [...names], datapoints: [[ts, v1, v2, ...], ...] }]
+            // where every element, including the timestamp, is a string or null.
+            const data = yield this.apiCall(`/${accountuuid}/r/telemetry/5m/historical?${params}`, undefined, 'GET');
+            const series = Array.isArray(data) ? data[0] : undefined;
+            if (!((_a = series === null || series === void 0 ? void 0 : series.sensors) === null || _a === void 0 ? void 0 : _a.length) || !((_b = series.datapoints) === null || _b === void 0 ? void 0 : _b.length)) {
+                return {};
+            }
+            const latest = series.datapoints.reduce((a, b) => { var _a, _b; return Number((_a = b[0]) !== null && _a !== void 0 ? _a : 0) > Number((_b = a[0]) !== null && _b !== void 0 ? _b : 0) ? b : a; });
+            return series.sensors.reduce((acc, sensorName, idx) => {
+                const key = Consts_1.BlueAirDeviceSensorDataMap[sensorName];
+                const value = latest[idx + 1];
+                if (key && value !== null && value !== undefined && value !== '') {
+                    acc[key] = Number(value);
+                }
+                return acc;
+            }, {});
         });
     }
     /**

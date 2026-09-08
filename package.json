@@ -1,7 +1,7 @@
 {
   "name": "blueairaws-client",
   "displayName": "BlueAir AWS API Client",
-  "version": "1.2.8",
+  "version": "1.2.9",
   "description": "Typescript Client for BlueAir using AWS endpoint",
   "repository": {
     "type": "git",
