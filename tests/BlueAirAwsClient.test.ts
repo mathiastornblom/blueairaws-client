@@ -28,13 +28,14 @@ describe('BlueAirAwsClient', () => {
       correctConfig.username,
       correctConfig.password,
     );
-    initialized = await client.initialize();
-    if (initialized) {
+    try {
+      initialized = await client.initialize();
       devices = await client.getDevices();
       uuids = devices.map((device) => device.uuid);
       accountuuid = devices[0].name; // Using the first device name as accountuuid
-    } else {
-      console.error('Initialization failed. Skipping tests.');
+    } catch (error) {
+      initialized = false;
+      console.error('Initialization failed. Skipping tests.', error);
     }
   });
 

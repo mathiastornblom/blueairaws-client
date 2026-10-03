@@ -35,7 +35,10 @@ export declare class BlueAirAwsClient {
     constructor(username: string, password: string);
     /**
      * Initializes the client by determining the API endpoint, region, and setting up the Gigya API.
-     * @returns {Promise<boolean>} True if initialization was successful, false otherwise.
+     * @returns {Promise<boolean>} Resolves true on success.
+     * @throws {Error} If region/endpoint determination or login fails — including Gigya
+     *   credential rejections (e.g. "Invalid LoginID") — so callers (notably Homey's
+     *   pairing UI) can surface the real cause instead of a generic failure.
      */
     initialize(region?: Region): Promise<boolean>;
     /**
