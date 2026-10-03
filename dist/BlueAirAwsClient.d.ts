@@ -21,6 +21,7 @@ export declare class BlueAirAwsClient {
     private _authToken;
     private gigyaApi;
     private last_login;
+    private _region;
     private blueAirApiUrl;
     private readonly API_KEY_TOKEN;
     private readonly HOMEHOST_ENDPOINT;
@@ -34,13 +35,18 @@ export declare class BlueAirAwsClient {
      */
     constructor(username: string, password: string);
     /**
-     * Initializes the client by determining the API endpoint, region, and setting up the Gigya API.
+     * Initializes the client: resolves the user's region, sets up the Gigya API and logs in.
+     * Without `region`, the region of the previous successful login is reused; on the first
+     * login it is detected, and the other regions are tried if the detected one rejects it.
      * @returns {Promise<boolean>} Resolves true on success.
-     * @throws {Error} If region/endpoint determination or login fails — including Gigya
-     *   credential rejections (e.g. "Invalid LoginID") — so callers (notably Homey's
-     *   pairing UI) can surface the real cause instead of a generic failure.
+     * @throws {Error} If login fails, including Gigya credential rejections
+     *   (e.g. "Invalid LoginID"), so callers can surface the real cause.
      */
     initialize(region?: Region): Promise<boolean>;
+    /** The region of the last successful login, or null before the first one. */
+    get region(): Region | null;
+    private connect;
+    private connectWithRegionFallback;
     /**
      * Determines the appropriate endpoint (home host) for the API and resolves the region.
      * @returns {Promise<Region>} - The determined API region.

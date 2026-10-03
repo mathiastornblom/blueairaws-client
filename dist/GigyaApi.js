@@ -12,6 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     return (mod && mod.__esModule) ? mod : { "default": mod };
 };
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.GIGYA_INVALID_LOGIN = exports.GigyaError = void 0;
 const axios_1 = __importDefault(require("axios"));
 const Consts_1 = require("./Consts");
 /**
@@ -46,17 +47,11 @@ class GigyaApi {
                 password: this.password,
                 targetEnv: 'mobile',
             });
-            console.debug('GigyaApi: Attempting login with', {
-                apiKey: this.api_key,
-                loginID: this.username,
-                password: '[REDACTED]',
-            });
-            console.debug('GigyaApi: Login API request', {
+            console.debug('GigyaApi: Attempting login', {
                 url: this.gigyaApiUrl,
-                params,
+                loginID: this.username,
             });
             const response = yield this.apiCall('/accounts.login', params.toString());
-            console.debug('GigyaApi: Login API response', response);
             this.throwIfGigyaError(response, 'login');
             if (!response.sessionInfo) {
                 throw new Error(`Gigya session error: sessionInfo in response: ${JSON.stringify(response)}`);
@@ -81,16 +76,7 @@ class GigyaApi {
                 secret: secret,
                 targetEnv: 'mobile',
             });
-            console.debug('GigyaApi: Attempting getGigyaJWT with', {
-                oauth_token: token,
-                asecret: secret,
-            });
-            console.debug('GigyaApi: Get JWT request', {
-                url: this.gigyaApiUrl,
-                params,
-            });
             const response = yield this.apiCall('/accounts.getJWT', params.toString());
-            console.debug('GigyaApi: get JWT response', response);
             this.throwIfGigyaError(response, 'getJWT');
             if (!response.id_token) {
                 throw new Error(`Gigya JWT error: no id_token in response: ${JSON.stringify(response)}`);
@@ -157,9 +143,10 @@ class GigyaApi {
             return;
         }
         if (response.errorCode === 403120) {
-            throw new Error('Gigya account is temporarily locked out (errorCode 403120). Wait before retrying, verify credentials, or unlock/reset the account in Blueair/Gigya.');
+            throw new GigyaError('Gigya account is temporarily locked out (errorCode 403120). Wait before retrying, verify credentials, or unlock/reset the account in Blueair/Gigya.', response.errorCode);
         }
-        throw new Error(`Gigya ${operation} failed: ${response.errorMessage || 'Unknown error'} (errorCode: ${response.errorCode}, statusCode: ${response.statusCode || 'n/a'})`);
+        const details = response.errorDetails ? ` - ${response.errorDetails}` : '';
+        throw new GigyaError(`Gigya ${operation} failed: ${response.errorMessage || 'Unknown error'}${details} (errorCode: ${response.errorCode}, statusCode: ${response.statusCode || 'n/a'})`, response.errorCode);
     }
 }
 // Gigya error codes that are transient and safe to retry
@@ -168,3 +155,14 @@ GigyaApi.RETRYABLE_GIGYA_CODES = new Set([
     500001, // General Server Error
 ]);
 exports.default = GigyaApi;
+class GigyaError extends Error {
+    constructor(message, errorCode) {
+        super(message);
+        this.errorCode = errorCode;
+        this.name = 'GigyaError';
+    }
+}
+exports.GigyaError = GigyaError;
+// Gigya returns this when the loginID/password pair is not accepted on the site
+// queried, which includes an account that is registered on another region's site.
+exports.GIGYA_INVALID_LOGIN = 403042;
