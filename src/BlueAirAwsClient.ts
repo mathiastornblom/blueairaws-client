@@ -13,7 +13,17 @@ import {
   BlueAirDeviceSensorDataMap,
   BlueAirSetStateBody,
 } from './Consts';
-import GigyaApi from './GigyaApi';
+import GigyaApi, { GigyaError, GIGYA_INVALID_LOGIN } from './GigyaApi';
+
+// Tried in this order when the user's Gigya site is unknown or the detected one
+// rejects the login. EU is BlueAir's default site for most countries.
+const REGION_FALLBACK_ORDER: Region[] = [
+  Region.EU,
+  Region.US,
+  Region.AU,
+  Region.CN,
+  Region.RU,
+];
 
 /**
  * Represents a device structure. Add more properties as per your actual data.
@@ -46,6 +56,8 @@ export class BlueAirAwsClient {
   // Timestamp for last login
   private last_login: number = 0;
 
+  private _region: Region | null = null;
+
   // Base URL for the BlueAir API
   private blueAirApiUrl!: string;
 
@@ -76,53 +88,94 @@ export class BlueAirAwsClient {
   }
 
   /**
-   * Initializes the client by determining the API endpoint, region, and setting up the Gigya API.
+   * Initializes the client: resolves the user's region, sets up the Gigya API and logs in.
+   * Without `region`, the region of the previous successful login is reused; on the first
+   * login it is detected, and the other regions are tried if the detected one rejects it.
    * @returns {Promise<boolean>} Resolves true on success.
-   * @throws {Error} If region/endpoint determination or login fails — including Gigya
-   *   credential rejections (e.g. "Invalid LoginID") — so callers (notably Homey's
-   *   pairing UI) can surface the real cause instead of a generic failure.
+   * @throws {Error} If login fails, including Gigya credential rejections
+   *   (e.g. "Invalid LoginID"), so callers can surface the real cause.
    */
   public async initialize(region?: Region): Promise<boolean> {
-    //console.debug('Initializing client...');
-
     try {
-      // Determine the region if not provided
-      if (!region) {
-        console.debug('No region provided, determining from endpoint...');
-        region = await this.determineEndpoint();
+      const target = region ?? this._region;
+      if (target) {
+        await this.connect(target);
+      } else {
+        await this.connectWithRegionFallback();
       }
-
-      console.debug('RegionMap:', RegionMap);
-
-      // Ensure that region is defined after determination
-      if (!region) {
-        throw new Error('Unable to determine region, and no region provided');
-      }
-
-      const regionCode = RegionMap[region];
-      if (!regionCode) {
-        throw new Error(`Invalid region code for region: ${region}`);
-      }
-
-      // Access AWS_CONFIG using the awsRegion string that corresponds to the region code
-      const config = Object.values(AWS_CONFIG).find(
-        (config) => config.regionCode === regionCode,
-      );
-
-      if (!config) {
-        throw new Error(`No config found for region: ${region}`);
-      }
-
-      this.blueAirApiUrl = `https://${config.restApiId}.execute-api.${config.awsRegion}.amazonaws.com/prod/c`;
-      this.gigyaApi = new GigyaApi(this.username, this.password, region);
-
-      await this.login();
-      console.debug('Client initialized successfully');
+      console.debug(`Client initialized successfully (region: ${this._region})`);
       return true;
     } catch (error) {
       console.error('Error during initialization:', error);
       throw error instanceof Error ? error : new Error(String(error));
     }
+  }
+
+  /** The region of the last successful login, or null before the first one. */
+  public get region(): Region | null {
+    return this._region;
+  }
+
+  private async connect(region: Region): Promise<void> {
+    const regionCode = RegionMap[region];
+    if (!regionCode) {
+      throw new Error(`Invalid region code for region: ${region}`);
+    }
+
+    const config = Object.values(AWS_CONFIG).find(
+      (config) => config.regionCode === regionCode,
+    );
+    if (!config) {
+      throw new Error(`No config found for region: ${region}`);
+    }
+
+    this.blueAirApiUrl = `https://${config.restApiId}.execute-api.${config.awsRegion}.amazonaws.com/prod/c`;
+    this.gigyaApi = new GigyaApi(this.username, this.password, region);
+
+    await this.login();
+    this._region = region;
+  }
+
+  // The homehost lookup reports where the user's legacy BlueAir account lives, which is
+  // not always the Gigya site holding their current login.
+  private async connectWithRegionFallback(): Promise<void> {
+    let detected: Region | undefined;
+    try {
+      detected = await this.determineEndpoint();
+    } catch (error) {
+      console.warn(
+        'Region lookup failed, trying each region instead:',
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+
+    const candidates = detected
+      ? [detected, ...REGION_FALLBACK_ORDER.filter((r) => r !== detected)]
+      : REGION_FALLBACK_ORDER;
+
+    let firstError: GigyaError | undefined;
+    for (const candidate of candidates) {
+      try {
+        await this.connect(candidate);
+        return;
+      } catch (error) {
+        if (
+          !(error instanceof GigyaError) ||
+          error.errorCode !== GIGYA_INVALID_LOGIN
+        ) {
+          throw error;
+        }
+        firstError ??= error;
+        console.warn(
+          `Login not accepted in region ${candidate}, trying the next region`,
+        );
+      }
+    }
+
+    throw new GigyaError(
+      `${firstError?.message} [tried regions: ${candidates.join(', ')}]`,
+      GIGYA_INVALID_LOGIN,
+    );
   }
 
   /**
@@ -239,13 +292,8 @@ export class BlueAirAwsClient {
 
     try {
       const { token, secret } = await this.gigyaApi.getGigyaSession();
-      console.debug('Gigya session token:', token, 'secret:', secret);
-
       const { jwt } = await this.gigyaApi.getGigyaJWT(token, secret);
-      console.debug('Gigya JWT:', jwt);
-
       const { accessToken } = await this.getAwsAccessToken(jwt);
-      console.debug('AWS access token:', accessToken);
 
       this.last_login = Date.now();
       this._authToken = accessToken;
@@ -301,35 +349,20 @@ export class BlueAirAwsClient {
   ): Promise<{ accessToken: string }> {
     console.debug('Starting to get AWS access token...');
 
-    // Log JWT details (partially, to avoid exposing sensitive data)
-    console.debug('JWT provided (first 50 chars):', jwt.substring(0, 50));
-
     try {
-      // Debug the headers used in the API call
       const headers = {
         Authorization: `Bearer ${jwt}`,
-        idtoken: jwt, // Ensure jwt is not null or undefined
+        idtoken: jwt,
       };
 
-      console.debug('Making API call to AWS /login with headers:', headers);
-
-      // Make the API call
       const response = await this.apiCall('/login', undefined, 'POST', headers);
 
-      // Log the raw response for analysis
-      console.debug(
-        'AWS access token response:',
-        JSON.stringify(response, null, 2),
-      );
-
-      // Check for the presence of the access_token
       if (!response.access_token) {
-        console.error('AWS access token missing in response:', response);
-        throw new Error(`AWS access token error: ${JSON.stringify(response)}`);
+        const keys = Object.keys(response ?? {}).join(', ');
+        throw new Error(`AWS access token missing in /login response (keys: ${keys})`);
       }
 
-      // Successfully retrieved token
-      console.debug('AWS access token received:', response.access_token);
+      console.debug('AWS access token received');
       return { accessToken: response.access_token };
     } catch (error) {
       // Handle and log errors
@@ -766,11 +799,8 @@ export class BlueAirAwsClient {
         timeout: BLUEAIR_API_TIMEOUT,
       });
 
-      console.debug('API Call - Response:', {
-        status: response.status,
-        body: response.data,
-        headers: response.headers,
-      });
+      // Never log the body here: the /login response carries the access token.
+      console.debug('API Call - Response:', { url, status: response.status });
 
       // Check for custom status code 229
       if (response.status === 229) {
