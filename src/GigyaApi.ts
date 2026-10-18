@@ -38,17 +38,11 @@ export default class GigyaApi {
       password: this.password,
       targetEnv: 'mobile',
     });
-    console.debug('GigyaApi: Attempting login with', {
-      apiKey: this.api_key,
-      loginID: this.username,
-      password: '[REDACTED]',
-    });
-    console.debug('GigyaApi: Login API request', {
+    console.debug('GigyaApi: Attempting login', {
       url: this.gigyaApiUrl,
-      params,
+      loginID: this.username,
     });
     const response = await this.apiCall('/accounts.login', params.toString());
-    console.debug('GigyaApi: Login API response', response);
 
     this.throwIfGigyaError(response, 'login');
 
@@ -83,16 +77,7 @@ export default class GigyaApi {
       targetEnv: 'mobile',
     });
 
-    console.debug('GigyaApi: Attempting getGigyaJWT with', {
-      oauth_token: token,
-      asecret: secret,
-    });
-    console.debug('GigyaApi: Get JWT request', {
-      url: this.gigyaApiUrl,
-      params,
-    });
     const response = await this.apiCall('/accounts.getJWT', params.toString());
-    console.debug('GigyaApi: get JWT response', response);
 
     this.throwIfGigyaError(response, 'getJWT');
 
@@ -180,13 +165,30 @@ export default class GigyaApi {
     }
 
     if (response.errorCode === 403120) {
-      throw new Error(
+      throw new GigyaError(
         'Gigya account is temporarily locked out (errorCode 403120). Wait before retrying, verify credentials, or unlock/reset the account in Blueair/Gigya.',
+        response.errorCode,
       );
     }
 
-    throw new Error(
-      `Gigya ${operation} failed: ${response.errorMessage || 'Unknown error'} (errorCode: ${response.errorCode}, statusCode: ${response.statusCode || 'n/a'})`,
+    const details = response.errorDetails ? ` - ${response.errorDetails}` : '';
+    throw new GigyaError(
+      `Gigya ${operation} failed: ${response.errorMessage || 'Unknown error'}${details} (errorCode: ${response.errorCode}, statusCode: ${response.statusCode || 'n/a'})`,
+      response.errorCode,
     );
   }
 }
+
+export class GigyaError extends Error {
+  constructor(
+    message: string,
+    public readonly errorCode: number,
+  ) {
+    super(message);
+    this.name = 'GigyaError';
+  }
+}
+
+// Gigya returns this when the loginID/password pair is not accepted on the site
+// queried, which includes an account that is registered on another region's site.
+export const GIGYA_INVALID_LOGIN = 403042;

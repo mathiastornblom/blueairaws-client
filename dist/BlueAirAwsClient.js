@@ -1,4 +1,37 @@
 "use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -16,7 +49,16 @@ exports.BlueAirAwsClient = void 0;
 const async_mutex_1 = require("async-mutex");
 const axios_1 = __importDefault(require("axios"));
 const Consts_1 = require("./Consts");
-const GigyaApi_1 = __importDefault(require("./GigyaApi"));
+const GigyaApi_1 = __importStar(require("./GigyaApi"));
+// Tried in this order when the user's Gigya site is unknown or the detected one
+// rejects the login. EU is BlueAir's default site for most countries.
+const REGION_FALLBACK_ORDER = [
+    Consts_1.Region.EU,
+    Consts_1.Region.US,
+    Consts_1.Region.AU,
+    Consts_1.Region.CN,
+    Consts_1.Region.RU,
+];
 /**
  * BlueAirAwsClient Class:
  * A client for handling requests to the BlueAir API.
@@ -33,6 +75,7 @@ class BlueAirAwsClient {
         this._authToken = null;
         // Timestamp for last login
         this.last_login = 0;
+        this._region = null;
         // Constant API key token, required for authenticating with the API.
         this.API_KEY_TOKEN = 'eyJhbGciOiJIUzI1NiJ9.eyJncmFudGVlIjoiYmx1ZWFpciIsImlhdCI6MTQ1MzEyNTYzMiwidmFsaWRpdHkiOi0xLCJqdGkiOiJkNmY3OGE0Yi1iMWNkLTRkZDgtOTA2Yi1kN2JkNzM0MTQ2NzQiLCJwZXJtaXNzaW9ucyI6WyJhbGwiXSwicXVvdGEiOi0xLCJyYXRlTGltaXQiOi0xfQ.CJsfWVzFKKDDA6rWdh-hjVVVE9S3d6Hu9BzXG9htWFw';
         // Endpoint to determine the home host. You will need to replace this with your actual endpoint.
@@ -44,45 +87,82 @@ class BlueAirAwsClient {
         this.mutex = new async_mutex_1.Mutex();
     }
     /**
-     * Initializes the client by determining the API endpoint, region, and setting up the Gigya API.
+     * Initializes the client: resolves the user's region, sets up the Gigya API and logs in.
+     * Without `region`, the region of the previous successful login is reused; on the first
+     * login it is detected, and the other regions are tried if the detected one rejects it.
      * @returns {Promise<boolean>} Resolves true on success.
-     * @throws {Error} If region/endpoint determination or login fails — including Gigya
-     *   credential rejections (e.g. "Invalid LoginID") — so callers (notably Homey's
-     *   pairing UI) can surface the real cause instead of a generic failure.
+     * @throws {Error} If login fails, including Gigya credential rejections
+     *   (e.g. "Invalid LoginID"), so callers can surface the real cause.
      */
     initialize(region) {
         return __awaiter(this, void 0, void 0, function* () {
-            //console.debug('Initializing client...');
             try {
-                // Determine the region if not provided
-                if (!region) {
-                    console.debug('No region provided, determining from endpoint...');
-                    region = yield this.determineEndpoint();
+                const target = region !== null && region !== void 0 ? region : this._region;
+                if (target) {
+                    yield this.connect(target);
                 }
-                console.debug('RegionMap:', Consts_1.RegionMap);
-                // Ensure that region is defined after determination
-                if (!region) {
-                    throw new Error('Unable to determine region, and no region provided');
+                else {
+                    yield this.connectWithRegionFallback();
                 }
-                const regionCode = Consts_1.RegionMap[region];
-                if (!regionCode) {
-                    throw new Error(`Invalid region code for region: ${region}`);
-                }
-                // Access AWS_CONFIG using the awsRegion string that corresponds to the region code
-                const config = Object.values(Consts_1.AWS_CONFIG).find((config) => config.regionCode === regionCode);
-                if (!config) {
-                    throw new Error(`No config found for region: ${region}`);
-                }
-                this.blueAirApiUrl = `https://${config.restApiId}.execute-api.${config.awsRegion}.amazonaws.com/prod/c`;
-                this.gigyaApi = new GigyaApi_1.default(this.username, this.password, region);
-                yield this.login();
-                console.debug('Client initialized successfully');
+                console.debug(`Client initialized successfully (region: ${this._region})`);
                 return true;
             }
             catch (error) {
                 console.error('Error during initialization:', error);
                 throw error instanceof Error ? error : new Error(String(error));
             }
+        });
+    }
+    /** The region of the last successful login, or null before the first one. */
+    get region() {
+        return this._region;
+    }
+    connect(region) {
+        return __awaiter(this, void 0, void 0, function* () {
+            const regionCode = Consts_1.RegionMap[region];
+            if (!regionCode) {
+                throw new Error(`Invalid region code for region: ${region}`);
+            }
+            const config = Object.values(Consts_1.AWS_CONFIG).find((config) => config.regionCode === regionCode);
+            if (!config) {
+                throw new Error(`No config found for region: ${region}`);
+            }
+            this.blueAirApiUrl = `https://${config.restApiId}.execute-api.${config.awsRegion}.amazonaws.com/prod/c`;
+            this.gigyaApi = new GigyaApi_1.default(this.username, this.password, region);
+            yield this.login();
+            this._region = region;
+        });
+    }
+    // The homehost lookup reports where the user's legacy BlueAir account lives, which is
+    // not always the Gigya site holding their current login.
+    connectWithRegionFallback() {
+        return __awaiter(this, void 0, void 0, function* () {
+            let detected;
+            try {
+                detected = yield this.determineEndpoint();
+            }
+            catch (error) {
+                console.warn('Region lookup failed, trying each region instead:', error instanceof Error ? error.message : String(error));
+            }
+            const candidates = detected
+                ? [detected, ...REGION_FALLBACK_ORDER.filter((r) => r !== detected)]
+                : REGION_FALLBACK_ORDER;
+            let firstError;
+            for (const candidate of candidates) {
+                try {
+                    yield this.connect(candidate);
+                    return;
+                }
+                catch (error) {
+                    if (!(error instanceof GigyaApi_1.GigyaError) ||
+                        error.errorCode !== GigyaApi_1.GIGYA_INVALID_LOGIN) {
+                        throw error;
+                    }
+                    firstError !== null && firstError !== void 0 ? firstError : (firstError = error);
+                    console.warn(`Login not accepted in region ${candidate}, trying the next region`);
+                }
+            }
+            throw new GigyaApi_1.GigyaError(`${firstError === null || firstError === void 0 ? void 0 : firstError.message} [tried regions: ${candidates.join(', ')}]`, GigyaApi_1.GIGYA_INVALID_LOGIN);
         });
     }
     /**
@@ -177,11 +257,8 @@ class BlueAirAwsClient {
             console.debug('Logging in...');
             try {
                 const { token, secret } = yield this.gigyaApi.getGigyaSession();
-                console.debug('Gigya session token:', token, 'secret:', secret);
                 const { jwt } = yield this.gigyaApi.getGigyaJWT(token, secret);
-                console.debug('Gigya JWT:', jwt);
                 const { accessToken } = yield this.getAwsAccessToken(jwt);
-                console.debug('AWS access token:', accessToken);
                 this.last_login = Date.now();
                 this._authToken = accessToken;
                 console.debug('Logged in successfully');
@@ -230,26 +307,17 @@ class BlueAirAwsClient {
     getAwsAccessToken(jwt) {
         return __awaiter(this, void 0, void 0, function* () {
             console.debug('Starting to get AWS access token...');
-            // Log JWT details (partially, to avoid exposing sensitive data)
-            console.debug('JWT provided (first 50 chars):', jwt.substring(0, 50));
             try {
-                // Debug the headers used in the API call
                 const headers = {
                     Authorization: `Bearer ${jwt}`,
-                    idtoken: jwt, // Ensure jwt is not null or undefined
+                    idtoken: jwt,
                 };
-                console.debug('Making API call to AWS /login with headers:', headers);
-                // Make the API call
                 const response = yield this.apiCall('/login', undefined, 'POST', headers);
-                // Log the raw response for analysis
-                console.debug('AWS access token response:', JSON.stringify(response, null, 2));
-                // Check for the presence of the access_token
                 if (!response.access_token) {
-                    console.error('AWS access token missing in response:', response);
-                    throw new Error(`AWS access token error: ${JSON.stringify(response)}`);
+                    const keys = Object.keys(response !== null && response !== void 0 ? response : {}).join(', ');
+                    throw new Error(`AWS access token missing in /login response (keys: ${keys})`);
                 }
-                // Successfully retrieved token
-                console.debug('AWS access token received:', response.access_token);
+                console.debug('AWS access token received');
                 return { accessToken: response.access_token };
             }
             catch (error) {
@@ -599,11 +667,8 @@ class BlueAirAwsClient {
                     signal: controller.signal,
                     timeout: Consts_1.BLUEAIR_API_TIMEOUT,
                 });
-                console.debug('API Call - Response:', {
-                    status: response.status,
-                    body: response.data,
-                    headers: response.headers,
-                });
+                // Never log the body here: the /login response carries the access token.
+                console.debug('API Call - Response:', { url, status: response.status });
                 // Check for custom status code 229
                 if (response.status === 229) {
                     const backoff = Math.min(1000 * Math.pow(2, 3 - retries), 60000); // Exponential backoff capped at 60 seconds

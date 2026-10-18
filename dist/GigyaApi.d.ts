@@ -35,3 +35,8 @@ export default class GigyaApi {
     private apiCall;
     private throwIfGigyaError;
 }
+export declare class GigyaError extends Error {
+    readonly errorCode: number;
+    constructor(message: string, errorCode: number);
+}
+export declare const GIGYA_INVALID_LOGIN = 403042;
